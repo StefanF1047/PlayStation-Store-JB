@@ -149,15 +149,8 @@ W.ui.renderHistory = function () {
     right = document.createElement('span');
     cls = e.result === 'ok' ? 'ok' : e.result === 'hang' ? 'hang' : 'fail';
     right.className = cls;
-    var rightTxt = (e.result === 'ok' ? 'OK' : e.result === 'hang' ? 'STALL' : 'FAIL');
-    if (e.result === 'ok' && e.ms != null) {
-      rightTxt += ' ' + Math.round(e.ms / 1000) + 's';
-    } else if (e.ms != null) {
-      rightTxt += ' ' + e.ms + 'ms';
-    } else if (e.duration) {
-      rightTxt += ' ' + e.duration;
-    }
-    right.textContent = rightTxt;
+    right.textContent = (e.result === 'ok' ? 'OK' : e.result === 'hang' ? 'STALL' : 'FAIL')
+      + (e.ms != null ? (' ' + e.ms + 'ms') : (e.duration ? (' ' + e.duration) : ''));
     row.appendChild(left);
     row.appendChild(right);
     list.appendChild(row);

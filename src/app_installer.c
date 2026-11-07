@@ -16,6 +16,11 @@
 #include "wkali.h"
 #include <ps5/kernel.h>
 
+#ifdef IGNIKEY_STORE
+#include "file_registry.h"
+#include "inflate.h"
+#endif
+
 #define INCASSET(name, file)                                                   \
   __asm__(".section .rodata\n"                                                 \
           ".global " #name "\n"                                                \
@@ -32,8 +37,6 @@ INCASSET(param_json, "assets/param.json");
 INCASSET(icon0_png, "assets/icon0.png");
 INCASSET(elfl_param_json, "assets/companions/elf-launcher/param.json");
 INCASSET(elfl_icon0_png, "assets/companions/elf-launcher/icon0.png");
-INCASSET(pldm_param_json, "assets/companions/payload-manager/param.json");
-INCASSET(pldm_icon0_png, "assets/companions/payload-manager/icon0.png");
 
 int sceAppInstUtilInitialize(void);
 int sceAppInstUtilTerminate(void);
@@ -237,17 +240,131 @@ static int install_title_if_missing(const char *title_id, const char *label,
   return 0;
 }
 
+#ifdef IGNIKEY_STORE
+/* Find a registry entry whose path ends with suffix (versioned /app/<ver>/...). */
+static const FileEntry *registry_find_suffix(const char *suffix) {
+  size_t slen;
+  unsigned int i;
+  if (!suffix)
+    return NULL;
+  slen = strlen(suffix);
+  for (i = 0; i < file_registry_count; i++) {
+    const char *p = file_registry[i].path;
+    size_t plen;
+    if (!p)
+      continue;
+    plen = strlen(p);
+    if (plen >= slen && strcmp(p + (plen - slen), suffix) == 0)
+      return &file_registry[i];
+  }
+  return NULL;
+}
+
+static int seed_registry_elf_to_path(const char *suffix, const char *dest) {
+  const FileEntry *entry;
+  unsigned char *buf = NULL;
+  size_t buflen = 0;
+  int rc = -1;
+
+  entry = registry_find_suffix(suffix);
+  if (!entry || !entry->data || entry->orig_size == 0) {
+    wkali_log("[WKALI] launcher install: missing registry entry for %s\n", suffix);
+    return -1;
+  }
+
+  if (entry->compressed) {
+    unsigned long destlen = entry->orig_size;
+    unsigned long sourcelen = entry->size;
+    buf = malloc(entry->orig_size);
+    if (!buf) {
+      wkali_log("[WKALI] launcher install: OOM for %s (%u)\n", suffix, entry->orig_size);
+      return -1;
+    }
+    if (puff(buf, &destlen, entry->data, &sourcelen) != 0) {
+      wkali_log("[WKALI] launcher install: inflate failed for %s\n", suffix);
+      free(buf);
+      return -1;
+    }
+    buflen = (size_t)destlen;
+  } else {
+    buf = (unsigned char *)entry->data;
+    buflen = entry->size;
+  }
+
+  if (install_file(dest, buf, buflen) != 0) {
+    wkali_log("[WKALI] launcher install: write failed %s\n", dest);
+  } else {
+    wkali_log("[WKALI] launcher install: wrote %s (%zu bytes)\n", dest, buflen);
+    rc = 0;
+  }
+
+  if (entry->compressed)
+    free(buf);
+  return rc;
+}
+
+int wkali_seed_launcher_files(void) {
+  int rc = 0;
+
+  if (mkdir_p("/data/elf-launcher", 0755) != 0) {
+    wkali_log("[WKALI] launcher install: mkdir failed (errno %d)\n", errno);
+    return -1;
+  }
+  (void)mkdir_p("/data/elf-launcher/mirror", 0755);
+
+  /* Keep WK Store WebKit open after tip: EL Leave-closed closes Store via
+   * navigateToHome and that can crash right after elfldr. Force open-after-jb. */
+  {
+    FILE *oaj = fopen("/data/elf-launcher/open-after-jb", "w");
+    if (oaj) {
+      fputc('1', oaj);
+      fputc('\n', oaj);
+      fclose(oaj);
+    } else {
+      wkali_log("[WKALI] launcher install: open-after-jb write failed (errno %d)\n", errno);
+    }
+  }
+
+  /* Tip executable for EL (installed + console mirror for 1.2.1 elauto). */
+  if (seed_registry_elf_to_path("/payloads/elf-launcher.elf",
+                                "/data/elf-launcher/elf-launcher.elf") != 0)
+    rc = -1;
+  if (seed_registry_elf_to_path("/payloads/elf-launcher.elf",
+                                "/data/elf-launcher/mirror/elf-launcher.elf") != 0)
+    rc = -1;
+
+  remove("/data/elf-launcher/mirror/elf-launcher.elf.sha256");
+
+  /* Permanent elfldr copy OUTSIDE mirror/ so tip AutoPayload never reloads it. */
+  if (seed_registry_elf_to_path("/shared/elfldr-ps5.elf",
+                                "/data/elf-launcher/elfldr-ps5.elf") != 0)
+    rc = -1;
+
+  remove("/data/elf-launcher/mirror/elfldr-ps5.elf");
+  remove("/data/elf-launcher/mirror/elfldr.elf");
+
+  /* Never seed Payload Manager. */
+  remove("/data/elf-launcher/mirror/pldmgr.elf");
+  remove("/data/elf-launcher/pldmgr.elf");
+
+  return rc;
+}
+#else
+int wkali_seed_launcher_files(void) { return 0; }
+#endif
+
 int wkali_install_companions(void) {
   int rc = 0;
 
-  /* Elf Launcher + Payload Manager homescreen pages. Never autoload payloads. */
+  /* Elf Launcher homescreen page only. Never install Payload Manager. */
   if (install_title_if_missing("ELFL00001", "Elf Launcher", elfl_param_json,
                                elfl_param_json_size, elfl_icon0_png,
                                elfl_icon0_png_size))
     rc = -1;
-  if (install_title_if_missing("PLDM00001", "Payload Manager", pldm_param_json,
-                               pldm_param_json_size, pldm_icon0_png,
-                               pldm_icon0_png_size))
+
+  /* Seed tip EL + elfldr only; never create or modify EL auto.list. */
+  if (wkali_seed_launcher_files() != 0)
     rc = -1;
   return rc;
 }
+

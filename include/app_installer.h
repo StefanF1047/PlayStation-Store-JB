@@ -7,6 +7,9 @@ int wkali_page_installed(void);
  * param/icon and call install again when already present. */
 int wkali_install_app(void);
 
-/* Install Elf Launcher (ELFL00001) and Payload Manager (PLDM00001)
- * homescreen pages when missing. Does not start servers or autoload. */
+/* Install Elf Launcher (ELFL00001) homescreen page when missing, and seed
+ * tip EL + elfldr into /data/elf-launcher. Never installs Payload Manager. */
 int wkali_install_companions(void);
+
+/* Seed tip + elfldr only (Store builds). No-op elsewhere. */
+int wkali_seed_launcher_files(void);

@@ -252,19 +252,9 @@ pldmgr_from_local() {
     return 1
 }
 
-if ! pldmgr_from_local; then
-  download_release "$PLDMGR_REPO" "$PLDMGR_TAG" "$PLDMGR_DEST" || {
-    if [ -f "$PLDMGR_DEST" ]; then
-      echo "warning: pldmgr download failed; keeping existing $PLDMGR_DEST"
-    else
-      echo "warning: pldmgr.elf missing (optional for Elf-Launcher-only)." >&2
-    fi
-  }
-fi
-if [ -f "$PLDMGR_DEST" ]; then
-  PLDMGR_SHA=$(sha256sum "$PLDMGR_DEST" | awk '{print $1}')
-  printf '%s %s\n' "$PLDMGR_TAG" "$PLDMGR_SHA" > "$PLDMGR_DEST.sha256"
-fi
+# SKIP pldmgr: this Store build seeds tip EL + elfldr only.
+rm -f "$PLDMGR_DEST" "$PLDMGR_DEST.sha256"
+echo "pldmgr: skipped (not bundled in this Store build)"
 
 # WK prelude mark: local sibling only (never fetched from GitHub).
 WKAL_MARK_DEST="$ROOT/frontend/autoloader/payloads/wkal-mark.elf"

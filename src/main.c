@@ -233,8 +233,8 @@ int main(void) {
         snprintf(uid_param, sizeof(uid_param), "&uid=%08x", (unsigned int)uid);
     }
 
-    /* Companion homescreen pages (ELFL00001 + PLDM00001): install when missing.
-     * Same for Store (IGNIKEY_STORE) and homescreen builds. Never autoload payloads. */
+    /* Companion: Elf Launcher page + seed tip/elfldr when missing.
+     * Never installs Payload Manager. Never autoload payloads. */
     wkali_install_companions();
 
     /* Open installer progress only when AppCache still needs a fill for this

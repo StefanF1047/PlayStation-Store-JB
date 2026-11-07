@@ -126,7 +126,7 @@ host: $(WKAL_HOST)
 dev: payload-deps
 	$(PYTHON) tools/dev_server.py
 
-# Post-JB companion installer: Elf Launcher + Payload Manager pages only.
+# Post-JB companion installer: Elf Launcher page only (no Payload Manager).
 COMPANIONS_ELF := frontend/autoloader/payloads/wkal-companions.elf
 COMPANIONS_SRCS := src/companions_main.c src/app_installer.c src/notification.c src/log.c
 
@@ -136,7 +136,7 @@ companions: $(COMPANIONS_ELF)
 # Companions only need install/notify libs - not libmicrohttpd (installer HTTP).
 COMPANIONS_LIBS := -L$(TARGET)/lib -lpthread 	-lSceNetCtl -lSceUserService -lSceSystemService -lSceAppInstUtil
 
-$(COMPANIONS_ELF): $(COMPANIONS_SRCS) include/app_installer.h $(ICON0) assets/companions/elf-launcher/param.json assets/companions/elf-launcher/icon0.png assets/companions/payload-manager/param.json assets/companions/payload-manager/icon0.png
+$(COMPANIONS_ELF): $(COMPANIONS_SRCS) include/app_installer.h $(ICON0) assets/companions/elf-launcher/param.json assets/companions/elf-launcher/icon0.png
 	@echo "Building $(COMPANIONS_ELF)..."
 	@mkdir -p $(dir $(COMPANIONS_ELF))
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(COMPANIONS_ELF) $(COMPANIONS_SRCS) $(COMPANIONS_LIBS)
@@ -148,7 +148,7 @@ clean:
 	rm -rf $(FRONTEND_STAGE)
 	rm -f $(ELF) $(FILE_REGISTRY_H) $(FILE_REGISTRY_C) $(FILE_REGISTRY_STAMP)
 	rm -f $(WKAL_HOST) $(VERSION_HEADER)
-	rm -rf $(STORE_GEN) $(STORE_ELF) WK_Autoloader_Store_Restore_V1.2.1.elf
+	rm -rf $(STORE_GEN) $(STORE_ELF) WK_Autoloader_Store_Restore_V1.2.2.elf
 
 .PHONY: all host dev clean payload-deps companions
 
@@ -164,8 +164,8 @@ STORE_SRCS  := $(STORE_DIR)/store_remap.c $(STORE_DIR)/tile_edit.c \
 SQLITE_SRC  := $(STORE_DIR)/third_party/sqlite3.c
 SQLITE_FLAGS := -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION \
                 -DSQLITE_OMIT_WAL -DSQLITE_DEFAULT_MEMSTATUS=0 -w
-STORE_VERSION := 1.2.1
-STORE_ELF   := WK_Autoloader_Store_V1.2.1.elf
+STORE_VERSION := 1.2.2
+STORE_ELF   := WK_Autoloader_Store_V1.2.2.elf
 STORE_CFLAGS := $(CFLAGS) -DIGNIKEY_STORE -DSTORE_VERSION='"$(STORE_VERSION)"' -I$(STORE_DIR) -I$(STORE_GEN) \
                 -I$(STORE_DIR)/third_party
 
@@ -194,7 +194,7 @@ $(STORE_ELF): $(FILE_REGISTRY_H) $(FILE_REGISTRY_C) $(SRCS) $(STORE_SRCS) \
 
 # Full Store restore: undoes NPXS40047 remap (backup or built-in stock).
 # Send to elfldr :9021, then reboot. Not linked into the Store installer ELF.
-RESTORE_ELF := WK_Autoloader_Store_Restore_V1.2.1.elf
+RESTORE_ELF := WK_Autoloader_Store_Restore_V1.2.2.elf
 .PHONY: restore
 restore: $(RESTORE_ELF)
 

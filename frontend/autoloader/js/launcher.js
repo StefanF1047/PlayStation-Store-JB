@@ -260,14 +260,9 @@ W.launcher.ensureRunning = function (cb) {
     W.launcher.sendUrlToElfldr(W.CONSOLE_MIRROR_URI, function () {
       W.launcher.probeElfLauncherHttp(function (up2) {
         if (up2) { W.state.elfHttpAlreadyUp = true; if (cb) cb(true); return; }
-        W.uiLog('Mirror miss, resend bundled tip elf-launcher.elf', 'info');
-        W.launcher.requestResendAutoload('elf-launcher.elf');
-        setTimeout(function () {
-          W.launcher.probeElfLauncherHttp(function (up3) {
-            W.state.elfHttpAlreadyUp = !!up3;
-            if (cb) cb(!!up3);
-          });
-        }, 4000);
+        W.uiLog('Mirror miss - not resending tip from browser', 'warning');
+        W.state.elfHttpAlreadyUp = false;
+        if (cb) cb(false);
       });
     });
   });
@@ -297,18 +292,9 @@ W.launcher.probeQuick = function (cb) {
 };
 
 W.autoloadElfName = function () {
-  /* Prefer this run's choice (forceAutoloadName / state) over a drifted localStorage value. */
-  if (W.state.forceAutoloadName === 'pldmgr.elf'
-      || W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER
-      || (W.getLauncherChoice && W.getLauncherChoice() === W.CHOICE_PAYLOAD_MANAGER)) {
-    return 'pldmgr.elf';
-  }
-  if (W.state.forceAutoloadName) return W.state.forceAutoloadName;
-  /* Elf Launcher only: open-only when :1000 up; else tip ELF name for chain autoload. */
-  if (W.state.elfHttpAlreadyUp) return 'wkal-skip';
-  /* Console mirror goes first (sent after JB by openElfLauncherPage). */
-  if (W.state.elMirrorFirst) return 'wkal-skip';
-  return 'elf-launcher.elf';
+  if (W.state.forceAutoloadName && W.state.forceAutoloadName !== 'pldmgr.elf')
+    return W.state.forceAutoloadName;
+  return 'wkal-skip';
 };
 
 /* Send console mirror via elfldr ?uri=file://… (reuse Image/iframe helper). */
@@ -401,44 +387,47 @@ W.launcher.openElfLauncherPage = function () {
       maybeNavigate(true, true);
       return;
     }
-    W.uiLog('Mirror miss, sending bundled Elf Launcher ' + W.BUNDLED_ELFLAUNCHER_VER, 'warning');
-    W.elauto.forgetMirror();
-    W.state.elRunSrc = 'bundled';
-    W.launcher.requestResendAutoload('elf-launcher.elf');
-    W.state.elMirrorFirst = false;
+    W.uiLog('Mirror miss - not sending from browser (seed via Store install)', 'warning');
     maybeNavigate(false);
   });
 };
 
 W.launcher.openPayloadManagerPage = function () {
-  if (W.state.launcherHttpOpenStarted) return;
-  W.state.launcherHttpOpenStarted = true;
-  try {
-    if (W.els.nextTile) {
-      W.els.nextTile.hidden = false;
-      try { if (W.uiSetPayload) W.uiSetPayload('plLauncher','OPEN',true); } catch (ePL) {}
-      var ico = document.getElementById('nextTileIco');
-      var title = document.getElementById('nextTileTitle');
-      var url = document.getElementById('nextTileUrl');
-      if (ico) ico.src = 'elf-launcher-icon.png';
-      if (title) title.textContent = (W.t && W.t('payloadManager')) ? ('Opening ' + W.t('payloadManager') + '...') : 'Opening Payload Manager...';
-      if (url) url.textContent = 'http://127.0.0.1:8084';
-    }
-  } catch (eTile) {}
-  W.uiLog('pldmgr.elf path - opening :8084 when ready ...', 'success');
-  W.launcher.openWhenHttpReady(W.consoleHttpBase(8084), 'payload-manager', '8084',
-    45000, 600, 300, true);
+  try { W.uiLog('Payload Manager disabled in this Store build', 'warning'); } catch (e) {}
+  return;
 };
 
 W.launcher.openCompanionPage = function () {
-  var wantPm = (W.state.forceAutoloadName === 'pldmgr.elf')
-    || (W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER)
-    || (W.getLauncherChoice && W.getLauncherChoice() === W.CHOICE_PAYLOAD_MANAGER);
-  if (wantPm) {
-    W.launcher.openPayloadManagerPage();
-    return;
+  if (W.state.launcherHttpOpenStarted) return;
+  W.state.launcherHttpOpenStarted = true;
+  var FIRST = 400;
+  var SETTLE = 200;
+  function mark(tag, msg, kind) {
+    try { if (W.uiSetPayload) W.uiSetPayload('plLauncher', tag || 'READY', true); } catch (eM) {}
+    try { W.uiLog(msg, kind || 'success'); } catch (eL) {}
   }
-  W.launcher.openElfLauncherPage();
+  function startTip() {
+    if (W.state.elfHttpAlreadyUp) {
+      mark('READY', 'Elf Launcher already up', 'success');
+      return;
+    }
+    var path = '/data/elf-launcher/elf-launcher.elf';
+    W.uiLog('disk tip background (out of chain, 400+200) ' + path, 'info');
+    try {
+      var img = new Image();
+      img.src = 'http://127.0.0.1:9021' + path + '?t=' + Date.now();
+      if (!W.elauto) W.elauto = {};
+      W.elauto._img = img;
+    } catch (eTip) {
+      W.uiLog('Disk tip failed: ' + (eTip && eTip.message ? eTip.message : eTip), 'warning');
+      mark('WAIT', 'disk tip failed', 'warning');
+      return;
+    }
+    try { if (W.uiSetPayload) W.uiSetPayload('plElfldr', 'READY', true); } catch (eE) {}
+    mark('READY', 'Elf Launcher tipped from disk (background)', 'success');
+  }
+  W.uiLog('JB+elfldr done - tip in ' + (FIRST + SETTLE) + 'ms (out of chain)', 'info');
+  setTimeout(startTip, FIRST + SETTLE);
 };
 
 W.bundledElfLauncherUrl = function () {
@@ -481,27 +470,8 @@ W.launcher.openNow = function () {
     W.launcher.sendUrlToElfldr(W.CONSOLE_MIRROR_URI, function () {
       W.elauto.waitUp(8000, function (up2) {
         if (up2) { openUp(); return; }
-
-        /* 3) Bundled tip from native HTTP registry (not AppCache). */
-        var tip = W.bundledElfLauncherUrl();
-        W.uiLog('Mirror miss - sending bundled tip via elfldr ?uri=' + tip, 'info');
-        W.launcher.sendUrlToElfldr(tip, function () {
-          W.elauto.waitUp(12000, function (up3) {
-            if (up3) { openUp(); return; }
-
-            /* 4) Last resort: exploit iframe resend (needs an active JB session). */
-            var asked = false;
-            try { asked = !!W.launcher.requestResendAutoload('elf-launcher.elf'); } catch (eR) {}
-            if (asked) {
-              W.elauto.waitUp(12000, function (up4) {
-                if (up4) openUp();
-                else fail('Could not start Elf Launcher. Run Jailbreak, or open the Elf Launcher home tile.');
-              });
-            } else {
-              fail('Elf Launcher is not running. Run Jailbreak first, or open the Elf Launcher home tile.');
-            }
-          });
-        });
+        /* No browser/bundled tip. Install Store seeds /data/elf-launcher/. */
+        fail('Elf Launcher not on disk. Reinstall Store, or open the Elf Launcher home tile.');
       });
     });
   });
@@ -547,6 +517,7 @@ W.launcher.onAutoloadResult = function (data) {
       }, 800);
     }
   }
+  /* Start the 2s-after-elfldr tip clock as soon as the chain reports ok. */
   setTimeout(function () {
     if (!data.ok) return;
     if (W.state.updateOnlyMode || W.state.pendingSelfUpdate) {
@@ -557,7 +528,7 @@ W.launcher.onAutoloadResult = function (data) {
     /* Save CFI after JB when launcher is up - shown from the next splash. */
     setTimeout(function () {
       if (W.persistCfiFromLauncher) W.persistCfiFromLauncher(function () {});
-    }, 3500);
+    }, 4500);
   }, 0);
 };
 

@@ -57,16 +57,21 @@ W.startChain = function (skipElfSend) {
     || (W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER)
     || (W.getLauncherChoice && W.getLauncherChoice() === W.CHOICE_PAYLOAD_MANAGER);
   if (wantPm) {
-    W.state.forceAutoloadName = 'pldmgr.elf';
+    /* pldmgr disabled */ W.state.forceAutoloadName = W.state.forceAutoloadName;
     W.state.elMirrorFirst = false;
     W.state.elfHttpAlreadyUp = false;
   } else {
     W.state.elMirrorFirst = !skipElfSend && !W.state.forceAutoloadName && !W.state.elfHttpAlreadyUp
       && !!(W.elauto && W.elauto.mirrorFirstOk(picked));
   }
+
+  /* Payload Manager removed: never send/start pldmgr. */
+  if (W.state.forceAutoloadName === 'pldmgr.elf') W.state.forceAutoloadName = null;
+  wantPm = false;
   /* Where the Elf Launcher that ends up on :1000 comes from (no-downgrade check). */
   W.state.elRunSrc = wantPm ? 'pldmgr' : (W.state.elfHttpAlreadyUp ? 'preexisting' : (W.state.elMirrorFirst ? 'mirror' : 'bundled'));
-  var autoloadName = W.state.forceAutoloadName || (skipElfSend ? 'wkal-skip' : W.autoloadElfName());
+  /* Tip in chain (1.2.0 style) via autoloadElfName; mirror-first still skips. */
+  var autoloadName = W.state.forceAutoloadName || (W.autoloadElfName ? W.autoloadElfName() : 'elf-launcher.elf');
   var urls = W.buildExploitUrls(autoloadName);
   W.state.UMTX2_URL = urls.umtx2;
   W.state.P2JB_URL = urls.p2jb;
@@ -81,10 +86,10 @@ W.startChain = function (skipElfSend) {
     W.uiLog('Post-JB launcher: Payload Manager (send ' + autoloadName + ' then open :8084)', 'info');
   } else {
     W.uiLog('Post-JB launcher: ' + (W.state.elfHttpAlreadyUp
-      ? 'Elf Launcher Hybrid (open :1000 only)'
+      ? 'Elf Launcher already up (headless; no Store navigate)'
       : W.state.elMirrorFirst
         ? 'Elf Launcher console mirror ' + W.elauto.mirrorLabel() + ' (bundled ' + W.BUNDLED_ELFLAUNCHER_VER + ' = fallback)'
-        : 'Elf Launcher Hybrid (send ' + autoloadName + ' ' + W.BUNDLED_ELFLAUNCHER_VER + ' then open :1000)'), 'info');
+        : 'Elf Launcher Hybrid (send ' + autoloadName + ' ' + W.BUNDLED_ELFLAUNCHER_VER + ' then tip headless)'), 'info');
   }
   W.uiLog('Chain: ' + picked + ' (autoload=' + autoloadName + ')', 'info');
 
@@ -188,7 +193,7 @@ W.start = function () {
       || (W.state.forceAutoloadName === 'pldmgr.elf')
       || (W.getLauncherChoice && W.getLauncherChoice() === W.CHOICE_PAYLOAD_MANAGER);
     if (wantPmUpdate) {
-      W.state.forceAutoloadName = 'pldmgr.elf';
+      /* pldmgr disabled */ W.state.forceAutoloadName = W.state.forceAutoloadName;
       W.state.elfHttpAlreadyUp = false;
       W.state.elMirrorFirst = false;
       W.uiLog('[update] Payload Manager selected - full chain with pldmgr.elf (not Elf Hybrid)', 'info');
@@ -212,7 +217,7 @@ W.start = function () {
   /* Payload Manager: same JB chain as Elf Launcher; only the post-JB ELF differs. */
   var wantPm = W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER;
   if (wantPm) {
-    W.state.forceAutoloadName = 'pldmgr.elf';
+    /* pldmgr disabled */ W.state.forceAutoloadName = W.state.forceAutoloadName;
     W.state.elfHttpAlreadyUp = false;
     W.state.elMirrorFirst = false;
     W.uiLog('Post-JB target: Payload Manager (pldmgr.elf -> :8084)', 'info');

@@ -1,9 +1,9 @@
 /*
- * Post-jailbreak companion installer for WK Autoloader.
+ * Post-jailbreak companion installer for WK Store.
  *
- * Sent to elfldr after JB. Installs Elf Launcher and Payload Manager
- * homescreen pages only when each is missing, then exits. Does not start
- * either HTTP server and does not autoload any payloads.
+ * Sent to elfldr after JB. Installs the Elf Launcher homescreen page
+ * only when missing, then exits. Does not start the HTTP server and does
+ * not autoload any payloads. Never installs Payload Manager.
  */
 #include <stdlib.h>
 #include <sys/syscall.h>
@@ -14,7 +14,7 @@
 
 int main(void) {
   syscall(SYS_thr_set_name, -1, "wkal-comp.elf");
-  wkali_log("[WKALI] Companion install (Elf Launcher + Payload Manager)...\n");
+  wkali_log("[WKALI] Companion install (Elf Launcher)...\n");
   (void)wkali_install_companions();
   return 0;
 }

@@ -1,4 +1,4 @@
-<img src="docs/img/banner.png" alt="WK Store">
+<img src="docs/img/banner-store.png" alt="WK Store">
 
 Turns the PS5 Store tile into WK Store: open the tile, start the jailbreak, and Elf Launcher opens when it finishes.
 
@@ -18,6 +18,7 @@ Turns the PS5 Store tile into WK Store: open the tile, start the jailbreak, and 
 
 ## Gallery
 
+<p><img src="docs/img/home.png" alt="WK Store home" width="640"></p>
 <p><img src="store/icon0.png" alt="Store tile icon" width="200"> <img src="store/pic0.png" alt="Store tile background" width="480"></p>
 
 ## Requirements

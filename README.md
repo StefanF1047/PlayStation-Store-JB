@@ -19,7 +19,7 @@ Turns the PS5 Store tile into WK Store: open the tile, start the jailbreak, and 
 ## Gallery
 
 <p><img src="docs/img/home-123.png" alt="WK Store home" width="640"></p>
-<p><img src="store/pic0.png" alt="Store tile" width="480"></p>
+<p><img src="docs/img/install-123.png" alt="WK Store install" width="640"></p>
 
 ## Requirements
 

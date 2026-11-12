@@ -6,10 +6,9 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA_FILE = ROOT / "frontend/autoloader/payloads/elf-launcher.elf.sha256"
-# Layout B modules live under js/; keep docs/ in sync when present.
+# Layout B modules live under js/.
 TARGETS = [
     ROOT / "frontend/autoloader/js/core.js",
-    ROOT / "docs/js/core.js",
 ]
 
 

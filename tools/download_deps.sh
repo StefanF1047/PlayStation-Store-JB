@@ -52,7 +52,6 @@ ELFLAUNCHER_PINNED_SHA="5c4a9c3146cf7ac14ce0dab35358eb5ab9cd17c647735d9fcd093291
 ELFLAUNCHER_DEST="$ROOT/frontend/autoloader/payloads/elf-launcher.elf"
 ELFLAUNCHER_LOCAL_CANDIDATES=(
     "$ELFLAUNCHER_DEST"
-    "$ROOT/docs/payloads/elf-launcher.elf"
     "$ROOT/../elf-launcher/launcher/elf-launcher.elf"
 )
 
@@ -235,7 +234,7 @@ for src in "${WKAL_MARK_LOCAL_CANDIDATES[@]}"; do
     fi
 done
 
-# The patched tip is committed in frontend/ and docs/ for offline builds.
+# The patched tip is committed in frontend/ for offline builds.
 elflauncher_from_local() {
     local src sha
     for src in "${ELFLAUNCHER_LOCAL_CANDIDATES[@]}"; do
@@ -260,9 +259,6 @@ if [ -f "$ELFLAUNCHER_DEST" ]; then
   else
     printf '%s\n' "$ELFLAUNCHER_SHA" > "$ELFLAUNCHER_DEST.sha256"
   fi
-  mkdir -p "$ROOT/docs/payloads"
-  cp -f "$ELFLAUNCHER_DEST" "$ROOT/docs/payloads/elf-launcher.elf"
-  cp -f "$ELFLAUNCHER_DEST.sha256" "$ROOT/docs/payloads/elf-launcher.elf.sha256"
   python3 "$ROOT/tools/update_elf_launcher_metadata.py"
   echo "elf-launcher: hybrid tip ready ($ELFLAUNCHER_SHA)"
 fi

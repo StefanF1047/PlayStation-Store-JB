@@ -207,8 +207,8 @@ W.launcher.probeElfLauncherHttp = function (cb) {
   setTimeout(function () {
     if (done) return;
     tryFetch('http://127.0.0.1:1000/auto-list?t=' + Date.now());
-  }, 400);
-  setTimeout(function () { fin(false); }, 400);
+  }, 600);
+  setTimeout(function () { fin(false); }, 2000);
 };
 
 
@@ -323,17 +323,27 @@ W.launcher.openElfLauncherPage = function () {
   if (W.state.elfHttpAlreadyUp) { ready(true); return; }
   /* Tip always starts AFTER the chain (never as Relapse autoload). Prefer the
    * installed EL on disk; fall back to a one-shot resend of the bundled tip. */
+  /* If companion/openNow already tipped this run, just wait. Never send twice. */
+  if (W.elboot && W.elboot._sent) {
+    W.uiLog('Elf Launcher already tipped this run; waiting for :1000', 'info');
+    W.elboot.waitUp(12000, function (up) {
+      if (up) W.state.elfHttpAlreadyUp = true;
+      ready(!!up);
+    });
+    return;
+  }
   /* Tip after elfldr (out of chain). Wait until :1000 answers before navigate
    * so the Store/JB page is not closed while EL is still loading. */
   W.uiLog('Starting tip after elfldr (out of chain) ' + W.CONSOLE_LAUNCHER_URI, 'info');
   if (!W.state.elInstalledFirst) {
     W.uiLog('No installed-EL path; resending bundled tip once after elfldr', 'info');
     try { W.launcher.requestResendAutoload('elf-launcher.elf'); } catch (eR) {}
+    try { if (W.elboot) W.elboot._sent = true; } catch (eS) {}
     ready(false);
     return;
   }
   W.elboot.sendInstalled();
-  W.elboot.waitUp(6000, function (up) {
+  W.elboot.waitUp(12000, function (up) {
     if (up) {
       W.state.elfHttpAlreadyUp = true;
       ready(true);
@@ -385,14 +395,9 @@ W.launcher.openCompanionPage = function () {
       open1000(true);
       return;
     }
-    var path = '/data/elf-launcher/elf-launcher.elf';
-    W.uiLog('disk tip background (out of chain, 400+200) ' + path, 'info');
+    W.uiLog('disk tip background (out of chain, 400+200) /data/elf-launcher/elf-launcher.elf', 'info');
     try {
-      var img = new Image();
-      img.src = 'http://127.0.0.1:9021' + path + '?t=' + Date.now();
-      if (!W.elboot) W.elboot = {};
-      W.elboot._img = img;
-      W.elboot._sent = true;
+      W.elboot.sendInstalled();
     } catch (eTip) {
       W.uiLog('Disk tip failed: ' + (eTip && eTip.message ? eTip.message : eTip), 'warning');
       mark('WAIT', 'disk tip failed', 'warning');
@@ -427,11 +432,10 @@ W.launcher.openNow = function () {
   }
   function openUp() {
     W.state.elfHttpAlreadyUp = true;
-    if (W.ui && W.ui.toast) W.ui.toast(W.t('openingElf') || 'Opening Elf Launcher׳’ג‚¬ֲ¦', '', 'ok');
+    if (W.ui && W.ui.toast) W.ui.toast(W.t('openingElf') || 'Opening Elf Launcher...', '', 'ok');
     W.launcher.openElfLauncherPage();
   }
 
-  if (W.ui && W.ui.toast) W.ui.toast('Elf Launcher', 'Opening׳’ג‚¬ֲ¦', 'ok');
 
   /* 1) Already running (:1000) = installed launcher UI. */
   W.launcher.probeElfLauncherHttp(function (up) {
@@ -505,13 +509,19 @@ W.elboot = W.elboot || {};
 W.elboot.installedFirstOk = function (chain) {
   return chain === 'relapse' || chain === 'poops' || chain === 'p2jb';
 };
-W.elboot.sendInstalled = function (cb) {
+W.elboot.sendInstalled = function (cb, force) {
+  if (W.elboot._sent && !force) {
+    W.uiLog('Elf Launcher already tipped this run; not sending again', 'info');
+    if (typeof cb === 'function') setTimeout(function () { try { cb(true); } catch (e0) {} }, 0);
+    return;
+  }
   var path = '/data/elf-launcher/elf-launcher.elf';
   W.uiLog('tip installed Elf Launcher ' + path, 'info');
   try {
     var img = new Image();
     img.src = 'http://127.0.0.1:9021' + path + '?t=' + Date.now();
     W.elboot._img = img;
+    W.elboot._sent = true;
   } catch (eTip) {
     W.uiLog('tip failed: ' + (eTip && eTip.message ? eTip.message : eTip), 'warning');
     if (typeof cb === 'function') try { cb(false); } catch (e) {}

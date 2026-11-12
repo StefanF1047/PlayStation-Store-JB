@@ -75,6 +75,59 @@ W.ui.toast = function (title, body, kind) {
   W.ui._toastT = setTimeout(function () { box.className = ''; }, 5000);
 };
 
+
+W.ui.bindPowerTiles = function () {
+  var roots = document.querySelectorAll('.power-tiles');
+  if (!roots.length) return;
+  var onPower = function (ev) {
+    var rootEl = ev.currentTarget;
+    var btn = ev.target;
+    while (btn && btn !== rootEl && !(btn.tagName === 'BUTTON' && btn.getAttribute('data-power'))) {
+      btn = btn.parentNode;
+    }
+    if (!btn || btn === rootEl || btn.disabled) return;
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var cmd = btn.getAttribute('data-power');
+    if (!cmd) return;
+    var elfName = (cmd === 'off' || cmd === 'poweroff') ? 'poweroff.elf'
+      : (cmd === 'reboot') ? 'reboot.elf'
+      : (cmd === 'rest' || cmd === 'suspend') ? 'suspend.elf'
+      : '';
+    if (!elfName) return;
+    btn.disabled = true;
+    var fileUrl = 'file:///data/wkal/' + elfName;
+    try { if (W.uiLog) W.uiLog('Power: ' + fileUrl + ' -> :9021/?uri=', 'info'); } catch (eL) {}
+    /* After JB, Store :1022 is down. elfldr loads the install-time file. */
+    try {
+      var img = new Image();
+      img.src = 'http://127.0.0.1:9021/?uri=' + encodeURIComponent(fileUrl) + '&t=' + Date.now();
+    } catch (eImg) {}
+    /* Optional: if Store HTTP is still up, also notify + native send. */
+    try {
+      var x = new XMLHttpRequest();
+      x.open('GET', 'http://127.0.0.1:1022/api/power?cmd=' + encodeURIComponent(cmd) + '&t=' + Date.now(), true);
+      x.timeout = 2500;
+      x.send();
+    } catch (eN) {}
+    setTimeout(function () {
+      try { if (W.setPowerTilesEnabled) W.setPowerTilesEnabled(true); } catch (eR) {}
+    }, 8000);
+  };
+  for (var i = 0; i < roots.length; i++) {
+    var rootEl = roots[i];
+    if (rootEl.getAttribute('data-bound') === '1') continue;
+    rootEl.setAttribute('data-bound', '1');
+    try {
+      var svgs = rootEl.querySelectorAll('svg');
+      for (var si = 0; si < svgs.length; si++) svgs[si].style.pointerEvents = 'none';
+    } catch (eSvg) {}
+    rootEl.addEventListener('click', onPower);
+    rootEl.addEventListener('touchend', onPower, false);
+  }
+};
+
+
+
 W.ui.bindToast = function () {
   var x = document.getElementById('toastx');
   if (x) x.onclick = function () {
@@ -120,6 +173,7 @@ W.ui.feedback = function (ok) {
 };
 
 W.ui.renderHistory = function () {
+
   var list = W.els.historyList;
   var empty = W.els.historyEmpty;
   if (!list) return;
@@ -130,27 +184,37 @@ W.ui.renderHistory = function () {
     return;
   }
   if (empty) empty.hidden = true;
-  var i, e, row, left, right, cls;
+  var i, e, row, left, right, cls, when, dur, chain, ds, cs;
   for (i = 0; i < Math.min(arr.length, 6); i++) {
     e = arr[i];
     row = document.createElement('div');
     row.className = 'hrow';
     left = document.createElement('span');
-    left.textContent = (e.chain || '-') + (e.stage && e.stage !== 'done' && e.stage !== 'fail' ? ' · ' + e.stage : '');
+    left.className = 'hmeta';
+    when = '';
     if (e.ts) {
-      var dt = new Date(e.ts), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
-      if (!isNaN(dt.getTime())) {
-        var ds = document.createElement('span');
-        ds.className = 'hdate';
-        ds.textContent = p2(dt.getDate()) + '/' + p2(dt.getMonth() + 1) + ' ' + p2(dt.getHours()) + ':' + p2(dt.getMinutes());
-        left.appendChild(ds);
+      if (W.formatLocalDateTime) when = W.formatLocalDateTime(e.ts);
+      else {
+        var dt = new Date(e.ts), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+        if (!isNaN(dt.getTime())) {
+          when = p2(dt.getMonth() + 1) + '-' + p2(dt.getDate())
+            + ' ' + p2(dt.getHours()) + ':' + p2(dt.getMinutes()) + ':' + p2(dt.getSeconds());
+        }
       }
     }
+    if (when) {
+      ds = document.createElement('span');
+      ds.className = 'hdate';
+      ds.textContent = when;
+      left.appendChild(ds);
+    }
+    
     right = document.createElement('span');
     cls = e.result === 'ok' ? 'ok' : e.result === 'hang' ? 'hang' : 'fail';
-    right.className = cls;
+    right.className = cls + ' hdur';
+    dur = (e.duration && String(e.duration)) || (e.ms != null && W.formatElapsed ? W.formatElapsed(e.ms) : (e.ms != null ? (e.ms + 'ms') : ''));
     right.textContent = (e.result === 'ok' ? 'OK' : e.result === 'hang' ? 'STALL' : 'FAIL')
-      + (e.ms != null ? (' ' + e.ms + 'ms') : (e.duration ? (' ' + e.duration) : ''));
+      + (dur ? ('  ' + dur) : '');
     row.appendChild(left);
     row.appendChild(right);
     list.appendChild(row);
@@ -172,7 +236,7 @@ W.ui.renderHomeInfo = function () {
   set('ldFw', fw && fw.str ? fw.str : '-');
   set('ldChain', chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : '-');
 
-  /* Model: live → cached CFI. Never '-' if we have a saved value. */
+  /* Model: live  ->  cached CFI. Never '-' if we have a saved value. */
   var showModel = function (raw) {
     var p = raw ? W.parseCfi(raw) : null;
     if (!p && W.getCachedCfi) p = W.getCachedCfi();
@@ -191,7 +255,7 @@ W.ui.renderHomeInfo = function () {
   if (W.state && W.state.hwModel) showModel(W.state.hwModel);
   else showModel('');
 
-  /* IP: live → localStorage. Never '-' if saved. */
+  /* IP: live  ->  localStorage. Never '-' if saved. */
   var ip = (W.state && W.state.lanIp) ? W.state.lanIp : (W.lsGet(W.LS_IP_KEY, '') || '');
   set('hiIp', ip || '-');
   set('ldIp', ip || '-');
@@ -212,6 +276,9 @@ W.ui.renderHomeInfo = function () {
       if (W.state) W.state.lanIp = ip;
       W.lsSet(W.LS_IP_KEY, ip);
       set('hiIp', ip); set('ldIp', ip);
+      try {
+        if (W.state && W.state.progressDone && W.showJbOkToast) W.showJbOkToast(ip);
+      } catch (eIpT) {}
     }
     function xhrJson(url, onok) {
       try {
@@ -224,6 +291,15 @@ W.ui.renderHomeInfo = function () {
         x.send();
       } catch (e1) {}
     }
+    xhrJson('http://127.0.0.1:9021/sysinfo?t=' + Date.now(), function (j) {
+      if (!j) return;
+      var m = '';
+      if (typeof j.model === 'string') m = j.model;
+      else if (typeof j.cfi === 'string') m = j.cfi;
+      m = String(m || '').replace(/[^\x20-\x7e]/g, '').trim();
+      applyModel(m);
+      if (j.ip) applyIp(j.ip);
+    });
     xhrJson('http://127.0.0.1:1000/sysinfo?t=' + Date.now(), function (j) {
       if (!j) return;
       var m = '';
@@ -315,10 +391,10 @@ W.ui.syncChainUi = function () {
       if (cfi) {
         chip.textContent = W.t('fwModelChain', {
           fw: fw.str,
-          model: cfi.code + ' · ' + cfi.label,
+          model: cfi.code + '  ·  ' + cfi.label,
           chain: W.formatChainLabel(show)
         });
-        chip.title = cfi.code + ' · ' + cfi.label;
+        chip.title = cfi.code + '  ·  ' + cfi.label;
       } else {
         chip.textContent = W.t('fwChain', {
           fw: fw.str,
@@ -375,6 +451,7 @@ W.ui.refreshCfiFromLauncher = function () {
 };
 
 W.ui.bindHome = function () {
+  if (!W.state.pageReadyAt) W.state.pageReadyAt = Date.now();
   if (W.ui.bindSettings) W.ui.bindSettings();
   var go = document.getElementById('startJailbreak');
   var cancel = document.getElementById('cancelAutoStart');
@@ -387,11 +464,11 @@ W.ui.bindHome = function () {
   var openOnly = document.getElementById('openLauncherOnly');
   var autoTimer = 0;
   var remaining = 0;
-  var delayCur = 3;
+  var delayCur = 0;
 
   function delaySec() {
     var n = parseFloat(delayCur);
-    if (isNaN(n)) n = 3;
+    if (isNaN(n)) n = 0;
     return Math.round(Math.min(3, Math.max(0, n)));
   }
   function retryN() {
@@ -412,7 +489,7 @@ W.ui.bindHome = function () {
   }
 
   /* Auto-start ON by default (first visit). */
-  var savedAuto = W.lsGet(W.LS_AUTO_KEY, '1');
+  var savedAuto = W.lsGet(W.LS_AUTO_KEY, '0');
   if (auto) auto.checked = savedAuto !== '0';
   function paintAuto() {
     var tile = document.getElementById('autoStartTile');
@@ -423,6 +500,16 @@ W.ui.bindHome = function () {
     try { W.ui.renderHomeInfo(); } catch (eh) {}
   }
   paintAuto();
+  var rejb = document.getElementById('rejbConfirm');
+  if (rejb) {
+    rejb.checked = W.lsGet(W.LS_REJB_KEY, '0') === '1';
+    paintRejb();
+    rejb.addEventListener('change', function () {
+      W.lsSet(W.LS_REJB_KEY, rejb.checked ? '1' : '0');
+      paintRejb();
+      if (W.state.alreadyJailbroken) markAlreadyJailbroken();
+    });
+  }
   if (delay) { var dv = parseFloat(W.lsGet(W.LS_DELAY_KEY, '0')); if (isNaN(dv)) dv = 3; delayCur = Math.round(Math.min(3, Math.max(0, dv))); }
   if (retry) { var rv = parseInt(W.lsGet(W.LS_RETRY_KEY, '1'), 10); if (isNaN(rv)) rv = 1; retry.value = String(Math.min(3, Math.max(0, rv))); }
   if (sound) sound.checked = W.ui.soundOn();
@@ -440,46 +527,180 @@ W.ui.bindHome = function () {
     if (W.els.countdownHint) W.els.countdownHint.textContent = '';
   }
 
+
+  /* AppCache must be fully ready before JB. Never arm iframe/startElapsed while
+     UNCACHED/CHECKING/DOWNLOADING. No blind timeout that starts JB anyway. */
+  function setCacheWaitUi(on, detail) {
+    try {
+      var box = document.getElementById('cacheFill');
+      var pctEl = document.getElementById('cacheFillPct');
+      var barEl = document.getElementById('cacheFillBar');
+      var subEl = document.getElementById('cacheFillSub');
+      if (box) box.hidden = !on;
+      if (on) {
+        if (pctEl && !pctEl.textContent) pctEl.textContent = '...';
+        if (subEl) subEl.textContent = detail || 'Waiting for cache before jailbreak...';
+        if (barEl && !barEl.style.width) barEl.style.width = '2%';
+      }
+      if (go && on) {
+        go.disabled = true;
+        go.classList.remove('is-cancel');
+        go.textContent = detail || (W.t('caching') || 'Caching...');
+      }
+      if (W.els && W.els.countdownHint) {
+        W.els.countdownHint.textContent = on ? (detail || 'Cache must finish before jailbreak') : '';
+      }
+    } catch (eUi) {}
+  }
+
+  function whenAppCacheReady(done) {
+    var ac = null;
+    try { ac = (typeof applicationCache !== 'undefined') ? applicationCache : null; } catch (e0) { ac = null; }
+    /* No AppCache API (PC preview): allow start. */
+    if (!ac) { done(); return; }
+    var st = -1;
+    try { st = ac.status; } catch (e1) { setCacheWaitUi(true, 'Cache status unknown  -  waiting...'); return; }
+    /* 1=IDLE already cached and quiet. */
+    if (st === 1) {
+      setCacheWaitUi(false);
+      done();
+      return;
+    }
+    /* 4=UPDATEREADY: swap into the new cache, then start. */
+    if (st === 4) {
+      try { ac.swapCache(); } catch (eSwap) {}
+      setCacheWaitUi(false);
+      done();
+      return;
+    }
+    /* 0=UNCACHED 2=CHECKING 3=DOWNLOADING 5=OBSOLETE  -  wait for a real ready event.
+       Never start JB on a timer alone. */
+    var finished = false;
+    function finishOk(why) {
+      if (finished) return;
+      finished = true;
+      setCacheWaitUi(false);
+      try { if (W.uiLog) W.uiLog('[boot] AppCache ready (' + why + ') - starting chain', 'info'); } catch (e2) {}
+      done();
+    }
+    function keepWaiting(why) {
+      try { if (W.uiLog) W.uiLog('[boot] AppCache not ready: ' + why, 'warning'); } catch (e3) {}
+      setCacheWaitUi(true, 'Cache not ready  -  keep this page open');
+    }
+    setCacheWaitUi(true, st === 0 ? 'Loading cache before jailbreak...' : 'Caching files before jailbreak...');
+    try { if (W.uiLog) W.uiLog('[boot] waiting for AppCache (status=' + st + ')', 'info'); } catch (e4) {}
+    /* Soft nudge only: remind UI / poll IDLE; never call done() from a timeout. */
+    var nudge = setInterval(function () {
+      if (finished) { clearInterval(nudge); return; }
+      var cur = -1;
+      try { cur = ac.status; } catch (e5) { return; }
+      if (cur === 1) { clearInterval(nudge); finishOk('idle-poll'); return; }
+      if (cur === 4) {
+        clearInterval(nudge);
+        try { ac.swapCache(); } catch (eSwap2) {}
+        finishOk('updateready-poll');
+        return;
+      }
+      setCacheWaitUi(true, 'Still caching  -  jailbreak waits...');
+    }, 1500);
+    try {
+      ac.addEventListener('cached', function () { clearInterval(nudge); finishOk('cached'); }, false);
+      ac.addEventListener('noupdate', function () { clearInterval(nudge); finishOk('noupdate'); }, false);
+      ac.addEventListener('updateready', function () {
+        try { ac.swapCache(); } catch (eSwap3) {}
+        clearInterval(nudge);
+        finishOk('updateready');
+      }, false);
+      ac.addEventListener('progress', function (e) {
+        try {
+          var box = document.getElementById('cacheFill');
+          var pctEl = document.getElementById('cacheFillPct');
+          var barEl = document.getElementById('cacheFillBar');
+          var subEl = document.getElementById('cacheFillSub');
+          var p = 0;
+          if (e && e.total > 0) p = Math.floor((e.loaded * 100) / e.total);
+          else if (e && e.loaded > 0) p = Math.min(99, Math.floor(e.loaded));
+          if (box) box.hidden = false;
+          if (pctEl) pctEl.textContent = p + '%';
+          if (barEl) barEl.style.width = p + '%';
+          if (subEl) subEl.textContent = 'Caching before jailbreak...';
+          if (go) { go.disabled = true; go.textContent = 'Cache ' + p + '%'; }
+        } catch (eP) {}
+      }, false);
+      ac.addEventListener('error', function () { keepWaiting('error'); }, false);
+      ac.addEventListener('obsolete', function () { keepWaiting('obsolete'); }, false);
+    } catch (e6) {
+      keepWaiting('listener-failed');
+    }
+  }
+
   function beginJailbreak() {
     if (W.state.chainStarted) return;
     cancelCountdown();
-    if (go) { go.disabled = true; go.classList.remove('is-cancel'); go.textContent = W.t('starting'); }
+    if (go) { go.disabled = true; go.classList.remove('is-cancel'); go.textContent = W.t('caching') || 'Waiting for cache...'; }
     W.state.safeRetryLeft = retryN();
     W.state.launcherChoice = W.getLauncherChoice ? W.getLauncherChoice() : W.CHOICE_ELF_LAUNCHER;
-    if (W.start) W.start();
+    whenAppCacheReady(function () { if (go) { go.disabled = true; go.textContent = W.t('starting') || 'Starting...'; } if (W.start) W.start(); });
   }
 
+  function rejbOn() {
+    return !!(document.getElementById('rejbConfirm') && document.getElementById('rejbConfirm').checked);
+  }
+  function paintRejb() {
+    var tile = document.getElementById('rejbTile');
+    var st = document.getElementById('rejbState');
+    var on = rejbOn();
+    if (tile) { if (on) tile.classList.add('on'); else tile.classList.remove('on'); }
+    if (st) st.textContent = on ? 'On' : 'Off';
+  }
   function markAlreadyJailbroken() {
-    W.state.alreadyJailbroken = true;
+  W.state.alreadyJailbroken = true;
+  try { if (W.setPowerTilesEnabled) W.setPowerTilesEnabled(true); } catch (ePw) {}
     cancelCountdown();
     if (go) {
-      go.disabled = true;
-      go.classList.remove('is-cancel');
-      go.textContent = W.t('alreadyJailbroken');
+      if (rejbOn()) {
+        go.disabled = false;
+        go.classList.remove('is-cancel');
+        go.textContent = W.t('jailbreakAgain') || 'Jailbreak again';
+      } else {
+        go.disabled = true;
+        go.classList.remove('is-cancel');
+        go.textContent = W.t('alreadyJailbroken');
+      }
     }
     if (openOnly) openOnly.hidden = false;
     try { W.uiLog(W.t('alreadyJailbroken'), 'success'); } catch (eAj) {}
   }
 
   function startCountdown() {
-    if (W.state.alreadyJailbroken) { markAlreadyJailbroken(); return; }
+    if (W.state.alreadyJailbroken && !rejbOn()) { markAlreadyJailbroken(); return; }
+    if (W.state.alreadyJailbroken && rejbOn()) {
+      var ok = true;
+      try { ok = window.confirm(W.t('rejbConfirmPrompt') || 'Run jailbreak again?'); } catch (eC) { ok = true; }
+      if (!ok) return;
+      W.state.alreadyJailbroken = false;
+    }
     if (W.state.chainStarted || autoTimer || !go) return;
     var fw = W.detectFirmware();
     if (fw && fw.num >= 6.0 && fw.num < 7.0) return;
     remaining = delaySec();
     W.state.runStage = 'countdown';
         if (remaining <= 0) {
-      /* Delay 0: start now. First-run fill only. */
+      /* Delay 0: still give WebKit a short settle after page load, otherwise auto-start fails. */
       cancelCountdown();
-      if (go) { go.disabled = true; go.classList.remove("is-cancel"); go.textContent = W.t("starting"); }
+      if (go) { go.disabled = true; go.classList.remove("is-cancel"); go.textContent = W.t("caching") || "Waiting for cache..."; }
       W.state.safeRetryLeft = retryN();
       W.state.launcherChoice = W.getLauncherChoice ? W.getLauncherChoice() : W.CHOICE_ELF_LAUNCHER;
-      if (W.start) W.start();
+      var readyAt = W.state.pageReadyAt || Date.now();
+      var settleMs = Math.max(0, 1000 - (Date.now() - readyAt));
+      setTimeout(function () {
+        whenAppCacheReady(function () { if (go) { go.disabled = true; go.textContent = W.t('starting') || 'Starting...'; } if (W.start) W.start(); });
+      }, settleMs);
       return;
     }
     go.disabled = false;
     go.classList.add('is-cancel');
-    go.textContent = W.t('cancel') + ' · ' + remaining;
+    go.textContent = W.t('cancel') + '  ·  ' + remaining;
     if (cancel) cancel.hidden = true;
     if (W.els.countdownHint) W.els.countdownHint.textContent = '';
     autoTimer = setInterval(function () {
@@ -490,7 +711,7 @@ W.ui.bindHome = function () {
         beginJailbreak();
         return;
       }
-      go.textContent = W.t('cancel') + ' · ' + remaining;
+      go.textContent = W.t('cancel') + '  ·  ' + remaining;
     }, 1000);
   }
 
@@ -522,7 +743,7 @@ W.ui.bindHome = function () {
       while (b && b !== delay && !(b.getAttribute && b.getAttribute('data-delay'))) b = b.parentNode;
       if (!b || b === delay) return;
       delayCur = Number(b.getAttribute('data-delay'));
-      if (isNaN(delayCur)) delayCur = 3;
+      if (isNaN(delayCur)) delayCur = 0;
       onDelayMove();
     });
   }
@@ -568,10 +789,10 @@ W.ui.bindHome = function () {
 
   /* Quick non-blocking probe: if Elf already up, show Open button.
      If elfldr (:9021) or Elf Launcher (:1000) answers, console is already
-     jailbroken — do not auto-run the exploit. */
+     jailbroken  -  do not auto-run the exploit. */
   function afterProbe(elfUp, ldrUp) {
     if (openOnly) openOnly.hidden = !elfUp;
-    if (elfUp) try { W.ui.refreshCfiFromLauncher(); } catch (eC) {}
+    if (elfUp || ldrUp) try { W.ui.refreshCfiFromLauncher(); } catch (eC) {}
     if (elfUp || ldrUp) { markAlreadyJailbroken(); return; }
     if (auto && auto.checked) startCountdown();
   }
@@ -594,19 +815,40 @@ W.ui.bindHome = function () {
 };
 
 W.ui.applyLauncherChoice = function (choice) {
+  var isPm = choice === W.CHOICE_PAYLOAD_MANAGER;
   var pickElf = document.getElementById('pickElf');
+  var pickPm = document.getElementById('pickPm');
   var sub = document.getElementById('homeSubShort');
   var heroIco = document.getElementById('heroIco');
-  if (pickElf) pickElf.classList.add('on');
+  if (pickElf) {
+    if (isPm) pickElf.classList.remove('on');
+    else pickElf.classList.add('on');
+  }
+  if (pickPm) {
+    if (isPm) pickPm.classList.add('on');
+    else pickPm.classList.remove('on');
+  }
   if (sub) {
-    sub.setAttribute('data-i18n', 'homeSubShort');
-    sub.textContent = W.t('homeSubShort') || 'Then opens Elf Launcher';
+    if (isPm) {
+      sub.removeAttribute('data-i18n');
+      sub.textContent = (W.t('afterJb') || 'After jailbreak, open') + ' ' + (W.t('payloadManager') || 'Payload Manager');
+    } else {
+      sub.setAttribute('data-i18n', 'homeSubShort');
+      sub.textContent = W.t('homeSubShort') || 'Then opens Elf Launcher';
+    }
   }
   if (heroIco) heroIco.src = 'elf-launcher-icon.png';
+  var oo = document.getElementById('openLauncherOnly');
+  if (oo && !isPm) {
+    /* keep existing probe-driven visibility for Elf Launcher */
+  } else if (oo && isPm) {
+    oo.hidden = true;
+  }
 };
 
 W.ui.bindLauncherChoice = function () {
   var pickElf = document.getElementById('pickElf');
+  var pickPm = document.getElementById('pickPm');
   function bind(el, choice) {
     if (!el) return;
     function pick(e) {
@@ -622,6 +864,7 @@ W.ui.bindLauncherChoice = function () {
     el.ontouchend = null;
   }
   bind(pickElf, W.CHOICE_ELF_LAUNCHER);
+  bind(pickPm, W.CHOICE_PAYLOAD_MANAGER);
   W.ui.applyLauncherChoice(W.getLauncherChoice());
 };
 })(typeof window !== 'undefined' ? window : this);

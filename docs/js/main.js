@@ -8,6 +8,7 @@ W.startChain = function (skipElfSend) {
     W.resetTiming();
     W.markTiming('jb_start');
   } catch (eT0) {}
+  try { if (W.resetElapsed) W.resetElapsed(); } catch (eRt) {}
   W.state.jbSuccessLogged = false;
   if (W.els.statusMsg) { W.els.statusMsg.textContent = ''; W.els.statusMsg.style.display = 'none'; }
   W.updateProgress(0, W.t('jailbreakStarted'));
@@ -147,9 +148,9 @@ W.startChain = function (skipElfSend) {
     } catch (eOn) {}
     W.els.exploit.src = W.state.EXPLOIT_URL;
     try { W.markTiming('iframe_request'); } catch (eR) {}
-    /* Timer starts on Relapse Starting WebKit (mirrors), not iframe request.
-       First JB cold-load of modules must not inflate the clock vs second JB. */
-    try { W.paintElapsedLine(W.formatElapsed(0)); } catch (ePe) {}
+    /* Start the clock at iframe request so a fast fail is not stuck at 0.00s.
+       Starting WebKit may later rebase elapsedStart to the Relapse line stamp. */
+    try { if (W.startElapsed) W.startElapsed(); } catch (ePe) {}
     /* Real milestone: exploit document requested (quiet UI has no fake creep). */
     if (W.bumpProgressFloor) W.bumpProgressFloor(5);
     W.uiLog('Starting WebKit / Relapse', 'info');
@@ -179,6 +180,7 @@ W.start = function () {
   }
   W.state.launcherHttpOpenStarted = false;
   W.state.elfHttpAlreadyUp = false;
+  try { if (W.elboot) W.elboot._sent = false; } catch (eSent) {}
   W.state.elInstalledFirst = false;
   W.state.launcherChoice = W.getLauncherChoice ? W.getLauncherChoice() : W.CHOICE_ELF_LAUNCHER;
 
@@ -271,18 +273,18 @@ window.addEventListener('load', function () {
         if (e && e.total > 0) p = Math.floor((e.loaded * 100) / e.total);
         else if (e && e.loaded > 0) p = Math.min(99, Math.floor(e.loaded));
       } catch (e1) {}
-      paint(p, 'Caching filesג€¦');
+      paint(p, 'Caching files...');
     }
     try {
-      ac.addEventListener('checking', function () { paint(Math.max(best, 1), 'Checking cacheג€¦'); }, false);
-      ac.addEventListener('downloading', function () { paint(Math.max(best, 2), 'Downloadingג€¦'); }, false);
+      ac.addEventListener('checking', function () { paint(Math.max(best, 1), 'Checking cache...'); }, false);
+      ac.addEventListener('downloading', function () { paint(Math.max(best, 2), 'Downloading...'); }, false);
       ac.addEventListener('progress', onProgress, false);
       ac.addEventListener('cached', function () { paint(100, 'Ready'); setTimeout(hide, 350); }, false);
       ac.addEventListener('noupdate', hide, false);
       ac.addEventListener('updateready', function () { paint(100, 'Ready'); setTimeout(hide, 350); }, false);
       ac.addEventListener('error', hide, false);
       ac.addEventListener('obsolete', hide, false);
-      if (ac.status === 2 || ac.status === 3) paint(Math.max(best, 1), 'Cachingג€¦');
+      if (ac.status === 2 || ac.status === 3) paint(Math.max(best, 1), 'Caching...');
     } catch (e2) {}
   })();
 

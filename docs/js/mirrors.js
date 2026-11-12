@@ -357,7 +357,7 @@ var p2jbLastSummaryText = '', p2jbEarlyLinesLogged = 0, p2jbLastPhaseStep = '', 
     statText(d.clocks, 'total ' + (s.total || '--:--:--')
       + (s.phaseKey ? ' · ' + s.phaseKey + ' ' + s.phaseTime : ''));
     statText(d.stepChip, 'STEP ' + (s.stepNum || '-') + '/' + (s.stepDen || 7));
-    statText(d.status, s.status || '…');
+    statText(d.status, s.status || '...');
     statText(d.phaseName, (s.phaseKey || 'phase').toUpperCase());
     statText(d.phasePct, s.phasePct !== undefined ? s.phasePct + '%' : '-');
 
@@ -447,7 +447,7 @@ var p2jbLastSummaryText = '', p2jbEarlyLinesLogged = 0, p2jbLastPhaseStep = '', 
     statText(d.phasePct, '100%');
     statText(d.overallPct, '100%');
     statText(d.phaseMeta, '');
-    statText(d.overallMeta, 'elfldr ready - sending payload…');
+    statText(d.overallMeta, 'elfldr ready - sending payload...');
     try { if (W.beginPayloadLoading) W.beginPayloadLoading('p2jb-stats'); } catch (ePl) {}
     statFill(d.phaseFill, 1);
     statFill(d.overallFill, 1);
@@ -672,9 +672,6 @@ var p2jbLastSummaryText = '', p2jbEarlyLinesLogged = 0, p2jbLastPhaseStep = '', 
       relapseSawConsole = true;
       /* Exact stamp from the iframe (site.js); poll delay no longer matters. */
       var lineAt = parseInt(el.getAttribute('data-t') || '0', 10) || 0;
-      if (lineAt && W.state.timing) {
-        try { W.uiLog('[time] +' + (lineAt - W.state.timing.t0) + 'ms ' + textLine, 'info'); } catch (eLt) {}
-      }
       var kind = 'info';
       var soft = /retry|attempt|^Failed\b/i.test(textLine)
         && !/reboot|WebKit exploit failed|elfldr did not|Kernel iframe did not load/i.test(textLine);
@@ -682,14 +679,25 @@ var p2jbLastSummaryText = '', p2jbEarlyLinesLogged = 0, p2jbLastPhaseStep = '', 
       else if (/^\[\+\]/.test(textLine) || /success|complete|listening/i.test(textLine)) kind = 'success';
       else if (/warning|warn/i.test(textLine)) kind = 'warning';
       setRelapseStatus(textLine);
+      /* Ops log removed. Still freeze the JB timer once kernel is done, before elfldr. */
+      if (/JB SUCCESS|kernel exploit complete/i.test(textLine)) {
+        try {
+          /* data-t is absolute Date.now() from the iframe line. */
+          if (W.freezeElapsed) W.freezeElapsed(lineAt > 1e12 ? lineAt : undefined);
+        } catch (eF) {}
+        W.state.jbSuccessLogged = true;
+      }
       /* Relapse floors calibrated to real stages. Snap via bumpProgressFloor
          (display must not lag during kernel quiet). Ohad: JB used to show ~58%
          at elfldr because eased display never caught up while the driver was paused. */
       if (/Offsets ready|Firmware:/.test(textLine)) {
         try { W.markTiming('relapse_offsets', lineAt); } catch (eM) {}
+        /* Fallback start if WebKit line missed; startElapsed is once-only. */
+        try { if (W.startElapsed && !W.state.elapsedStart) W.startElapsed(lineAt > 1e12 ? lineAt : undefined); } catch (eSe0) {}
         W.bumpProgressFloor(12);
       } else if (/Starting WebKit/.test(textLine)) {
         try { W.markTiming('relapse_webkit', lineAt); } catch (eM) {}
+        try { if (W.startElapsed) W.startElapsed(lineAt > 1e12 ? lineAt : undefined); } catch (eSe) {}
         W.bumpProgressFloor(22);
       } else if (/ARW ready|WebKit base/.test(textLine)) {
         try { W.markTiming('relapse_arw', lineAt); } catch (eM) {}
@@ -722,7 +730,6 @@ var p2jbLastSummaryText = '', p2jbEarlyLinesLogged = 0, p2jbLastPhaseStep = '', 
         else if (/read and write ready/i.test(textLine)) W.bumpProgressFloor(72);
         else W.bumpProgressFloor(62);
       }
-      W.uiLog('[relapse] ' + textLine, kind);
     }
   }
 

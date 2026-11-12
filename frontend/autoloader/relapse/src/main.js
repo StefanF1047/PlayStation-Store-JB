@@ -1,4 +1,4 @@
-function countFingerprints(p, stack, expected) {
+﻿function countFingerprints(p, stack, expected) {
   let count = 0;
   for (let offset = 0x7f000; offset < 0x80000; offset += 0x8) {
     const v = p.read8(stack.add32(offset));
@@ -281,6 +281,52 @@ function wkalAutoloadName() {
   }
 }
 
+
+
+async function wkalSonyJbOkToast(p, chain) {
+  let ip = "";
+  try {
+    const saved = localStorage.getItem("wkal_lan_ip") || "";
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(saved) && saved.indexOf("127.") !== 0) ip = saved;
+  } catch (e0) {}
+  if (!ip) {
+    try {
+      const r = await fetch("http://127.0.0.1:9021/sysinfo?t=" + Date.now(), { cache: "no-store" });
+      const j = await r.json();
+      if (j && j.ip && /^\d+\.\d+\.\d+\.\d+$/.test(j.ip) && j.ip.indexOf("127.") !== 0) ip = String(j.ip);
+    } catch (e1) {}
+  }
+  if (!ip) {
+    try {
+      const r2 = await fetch("http://127.0.0.1:1022/api/sysinfo?t=" + Date.now(), { cache: "no-store" });
+      const j2 = await r2.json();
+      if (j2 && j2.ip && /^\d+\.\d+\.\d+\.\d+$/.test(j2.ip) && j2.ip.indexOf("127.") !== 0) ip = String(j2.ip);
+    } catch (e2) {}
+  }
+  const line = "Mode: JB Ok\nIP Console: " + (ip || "-") + "\nPort: 9021";
+  try { await systemNotify(p, chain, line); } catch (eN) {}
+}
+
+async function systemNotify(p, chain, message) {
+  /* Same Sony system toast as IP / elfldr port (sceKernelSendNotificationRequest). */
+  try {
+    const tables = window.SYMBOLS || {};
+    const off = tables.libkernel && typeof tables.libkernel.sceKernelSendNotificationRequest === "number"
+      ? tables.libkernel.sceKernelSendNotificationRequest
+      : null;
+    if (off == null || !p || !p.libKernelBase || !chain) return;
+    const size = 0xc30; /* useless1[45] + message[3075] */
+    const req = p.malloc(size, 1);
+    if (req.backing) {
+      const n = Math.min(req.backing.length, size);
+      for (let i = 0; i < n; i++) req.backing[i] = 0;
+    }
+    const text = String(message || "").slice(0, 200);
+    p.writestr(req.add32(45), text);
+    await chain.call(p.libKernelBase.add32(off), 0, req, size, 0);
+  } catch (e) { }
+}
+
 function wkalPostAutoload(ok, extra) {
   try {
     const msg = { type: "wkal", kind: "autoload", ok: !!ok };
@@ -300,9 +346,14 @@ async function main(userlandRW) {
 
   const autoloadName = wkalAutoloadName();
 
+  log("kernel exploit complete", "info");
+  /* Quiet signal to parent: freeze elapsed timer before elfldr. No toast / no ops log. */
+  try {
+    window.parent.postMessage({ type: "wkal", kind: "jb-success", at: Date.now() }, "*");
+  } catch (eDbg) {}
+
   if (result.payloads) {
-    log("kernel exploit complete", "info");
-    log("elfldr is listening on port 9021", "info");
+    log("elfldr spawned; checking readiness before launcher", "info");
     // WK self-update: parent may ask to (re)send a bundled ELF after JB,
     // e.g. elf-launcher.elf so :1000 can download the new WK.
     window.addEventListener("message", async (ev) => {
@@ -321,11 +372,26 @@ async function main(userlandRW) {
       }
     });
     // WKAL autoload: honor ?autoload=<name> / sessionStorage wkal_autoload so
-    // Payload Manager / elf-launcher still run after JB (same contract as
+    // Elf Launcher still runs after JB (same contract as
     // patches/slopkit-autoload.patch and patches/umtx2-autoload.patch).
     if (autoloadName === "wkal-skip") {
-      log("elf-launcher already on :1000 - not sending", "info");
-      wkalPostAutoload(true, { bytes: 0, skipped: true });
+      // Skip the bundled tip, NOT elfldr readiness. The parent starts the
+      // installed launcher as soon as it receives autoload success.
+      try {
+        const { waitForElfldr } = await import("./kexp.js");
+        log("waiting for elfldr on 9021 before installed launcher...", "info");
+        await waitForElfldr(p, chain);
+        log("elfldr ready on 9021 - installed launcher may start", "info");
+        try {
+          window.parent.postMessage({ type: "wkal", kind: "elfldr-ready-ip" }, "*");
+        } catch (eIp) {}
+        wkalPostAutoload(true, { bytes: 0, skipped: true });
+        try { await wkalSonyJbOkToast(p, chain); } catch (eToast) {}
+      } catch (error) {
+        const why = error instanceof Error ? error.message : String(error);
+        log("elfldr readiness failed: " + why, "error");
+        wkalPostAutoload(false, { why });
+      }
     } else if (autoloadName) {
       try {
         const { sendAutoloadElf } = await import("./kexp.js");
@@ -334,6 +400,7 @@ async function main(userlandRW) {
           autoloadName, "../payloads/", p, chain,
           (message) => log(message, "info"));
         wkalPostAutoload(true, { bytes: bytes });
+        try { await wkalSonyJbOkToast(p, chain); } catch (eToast2) {}
       } catch (error) {
         const why = error instanceof Error ? error.message : String(error);
         log("autoload failed: " + why, "error");

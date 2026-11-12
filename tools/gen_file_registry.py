@@ -79,9 +79,10 @@ def include_in_registry(path):
     # autoload ELFs come from /app/<version>/payloads/).
     if "/relapse/payloads/" in path:
         name = os.path.basename(path)
-        return name in ("elfldr-ps5-1360.elf", "kexp_2026_05_25.bin") or (
+        # elfldr is embedded in relapse/src/elfldr_embedded.js; ship kexp only.
+        return name in ("kexp_2026_05_25.bin",) or (
             name.startswith("kexp") and name.endswith(".bin")
-        ) or name.startswith("elfldr")
+        )
     # Poops is an optional chain (7.00-12.00). Ship with AppCache again.
     if path.endswith(".sha256"):
         return False
@@ -96,6 +97,7 @@ VERSION_PLACEHOLDER = b"[[VERSION_PLACEHOLDER]]"
 BUILD_TIME_PLACEHOLDER = b"[[BUILD_TIME_PLACEHOLDER]]"
 EXPLOIT_MODE_PLACEHOLDER = b"[[EXPLOIT_MODE]]"
 APP_DIR_PLACEHOLDER = b"[[APP_DIR_PLACEHOLDER]]"
+STORE_VERSION_PLACEHOLDER = b"[[STORE_VERSION_PLACEHOLDER]]"
 
 # The build-time exploit override in js/core.js (auto | umtx2 | p2jb | relapse | poops).
 # Defaults to "auto" (firmware routing) unless FORCE_EXPLOIT is set.
@@ -141,6 +143,14 @@ def apply_pointer_placeholder(path, data, version):
     return data
 
 
+def apply_store_version_placeholder(data):
+    """Replace [[STORE_VERSION_PLACEHOLDER]] in any staged file with the
+    Makefile STORE_VERSION (visible Store UI version). Applied globally so
+    HTML labels and JS cannot drift from the ELF name."""
+    ver = os.environ.get("STORE_VERSION", "dev").strip() or "dev"
+    return data.replace(STORE_VERSION_PLACEHOLDER, ver.encode("utf-8"))
+
+
 def apply_exploit_mode_placeholder(path, data, app_dir):
     """Replace the [[EXPLOIT_MODE]] token in js/core.js from the FORCE_EXPLOIT env."""
     if path == app_dir + "/js/core.js":
@@ -177,7 +187,7 @@ def compress_entry(data):
 # Autoload ELF names the splash choice can select. AppCache matches URLs
 # exactly (query included), so every variant must be listed. Keep in sync
 # with buildExploitUrls() in frontend/autoloader/js/chains.js.
-AUTOLOAD_ELF_NAMES = ("payload.elf", "elf-launcher.elf", "wkal-skip", "wkal-mark.elf", "wkal-companions.elf")
+AUTOLOAD_ELF_NAMES = ("payload.elf", "wkal-skip", "wkal-mark.elf", "wkal-companions.elf")
 
 
 # p2jb (FW 12.02-12.70, force-only): upstream's canonical production query plus
@@ -257,12 +267,21 @@ def collect_cachebust_urls(files):
 
 def manifest_omits_unused_tree(path):
     """Omit unused slopkit assets. Keep umtx2 tree, Poops, and p2jb + shared deps."""
-    # Payload Manager is offered again (splash choice). Cache pldmgr.elf +
-    # ?autoload=pldmgr.elf URLs so the installed homescreen app can send it
-    # offline after JB. Icon is .png in the current UI (old .jpg still unused).
+    # Drop unused legacy splash icon if present.
     base0 = path.split("?", 1)[0]
     if base0.endswith("/payload-manager-icon.jpg"):
         return True
+    # Multi-MB ELFs / hero art are not needed to START Relapse. Listing them in
+    # AppCache made PS5 WebKit download ~5MB+ (alphabetically before /relapse/)
+    # while auto-start already armed the iframe timer - Relapse scripts never
+    # arrived. Still served over HTTP from the file registry when needed.
+    name = base0.rsplit("/", 1)[-1]
+    if name.endswith(".elf") and "/relapse/" not in base0:
+        return True
+    if name in ("ps5-hero.jpg", "elf-launcher-icon.png"):
+        return True
+    # elfldr_embedded.js IS required to finish JB offline. Do not omit it; put
+    # it last via cache_entry_priority() so site.js/webkit.js download first.
     # umtx2 is an active chain (low FW); include its tree in AppCache.
     if "/umtx2/" in path:
         return False
@@ -297,6 +316,21 @@ def manifest_omits_unused_tree(path):
     return False
 
 
+def cache_entry_priority(path):
+    """AppCache download order on PS5 WebKit follows manifest list order.
+    Relapse startup scripts must come before the ~560KB elfldr_embedded.js
+    and before unrelated UI blobs, or the JB iframe timer runs with no chain.
+    """
+    base = path.split("?", 1)[0]
+    if "/relapse/" in base:
+        if base.endswith("/elfldr_embedded.js"):
+            return (2, path)  # after other relapse sources
+        return (0, path)  # relapse essentials first
+    if base.endswith("/__complete__") or base.endswith("/index.html") and base.count("/") <= 3:
+        return (3, path)
+    return (1, path)  # UI / fonts
+
+
 def build_manifest(files, version, build_time, app_dir, pointer_path, marker_path):
     """Build the AppCache manifest. Ordering matters for partial-cache safety:
     every versioned file is listed first, then the exploit iframe URLs and the
@@ -308,13 +342,13 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
     lines = [
         "CACHE MANIFEST",
         # No wall-clock: same STORE_VERSION + files => same manifest bytes.
-        f"# WK Autoloader v{version} store-v{os.environ.get('STORE_VERSION', 'dev')} ignikey-v34 by X-F1REBALL-X - "
+        f"# WK Store v{version} store-v{os.environ.get('STORE_VERSION', 'dev')} ignikey-v34 by X-F1REBALL-X - "
         "written by tools/gen_file_registry.py, do not edit.",
         "",
         "CACHE:",
     ]
     # Installer HTML must always come from the network so a stale AppCache
-    # master entry (stock WK Autoloader with SOFT_CAP=99) cannot stick.
+    # master entry (stock WK Store with SOFT_CAP=99) cannot stick.
     installer_network = {"/index.html", "/ignikey.html", "/"}
     cache_entries = [
         path for path, _ in files
@@ -322,16 +356,22 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
         and path not in installer_network
         and not manifest_omits_unused_tree(path)
     ]
-    cache_entries.sort()
+    cache_entries.sort(key=cache_entry_priority)
     lines += cache_entries
+    path_set = {path for path, _ in files}
+    has_umtx2 = any("/umtx2/" in path for path in path_set)
+    has_p2jb = any(path.endswith("/p2jb.html") or "/p2jb." in path for path in path_set)
+    has_poops = any(path.endswith("/poops.html") or path.endswith("/poops.js") for path in path_set)
     for autoload in AUTOLOAD_ELF_NAMES:
         lines.append(relapse_iframe_url(app_dir, autoload))
-        # umtx2 (low FW). List iframe URLs for AppCache offline.
-        lines.append(umtx2_iframe_url(app_dir, autoload))
-        # p2jb (force-only 12.02-12.70). List iframe URLs for AppCache offline.
-        lines.append(p2jb_iframe_url(app_dir, autoload))
-        # Poops optional chain (7-12). List iframe URLs for AppCache offline.
-        lines.append(poops_iframe_url(app_dir, autoload))
+        # Only list chain iframe URLs when that tree was staged. Ghost URLs 404
+        # and abort the whole AppCache update on PS5 WebKit.
+        if has_umtx2:
+            lines.append(umtx2_iframe_url(app_dir, autoload))
+        if has_p2jb:
+            lines.append(p2jb_iframe_url(app_dir, autoload))
+        if has_poops:
+            lines.append(poops_iframe_url(app_dir, autoload))
     lines += [
         url for url in collect_cachebust_urls(files)
         if not manifest_omits_unused_tree(url)
@@ -357,6 +397,10 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
         if manifest_omits_unused_tree(path):
             continue
         directory = os.path.dirname(path)
+        # Never FALLBACK /relapse/ -> index.html: a failed module fetch would
+        # return HTML and Relapse would sit dead while the host timer runs.
+        if "/relapse" in directory:
+            continue
         if directory != "/":
             lines.append(f"{directory}/ {path}")
 
@@ -461,6 +505,7 @@ def main():
                                              version_info["build_time"], versioned_paths)
             data = apply_pointer_placeholder(path, data, version)
             data = apply_exploit_mode_placeholder(path, data, app_dir)
+            data = apply_store_version_placeholder(data)
             stored, compressed = compress_entry(data)
             emit_c_array(out, f"file_{i}", stored)
             out.write("\n")

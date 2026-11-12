@@ -158,7 +158,7 @@ int main(void) {
         sleep(1);
     }
 
-    wkali_log("[WKALI] PS5-WebKit-Autoloader Installer v%s by X-F1REBALL-X (built %s) starting on port %d...\n",
+    wkali_log("[WKALI] WK Store v%s by X-F1REBALL-X (built %s) starting on port %d...\n",
                    WKAL_FULL_VERSION, WKAL_BUILD_TIME, WKALI_PORT);
 
     /* Install the page only when it is missing. An existing page is left as is,
@@ -233,30 +233,24 @@ int main(void) {
         snprintf(uid_param, sizeof(uid_param), "&uid=%08x", (unsigned int)uid);
     }
 
-    /* Companion: Elf Launcher page + seed tip/elfldr when missing.
-     * Never installs Payload Manager. Never autoload payloads. */
+    /* Companion homescreen: Elf Launcher (ELFL00001) when missing.
+     * Never autoload payloads. */
     wkali_install_companions();
+    (void)ps5_seed_power_elfs();
 
-    /* Open installer progress only when AppCache still needs a fill for this
-     * STORE_VERSION. If already warm, open /app so cached UI is used. */
+    /* Store: never auto-open the WK UI. Cold cache -> installer (fills
+     * AppCache, remaps tile, then /exit returns home with Reboot now).
+     * Warm cache -> remap via a tiny headless hit is not available, so
+     * still open the installer briefly; finishOk will not navigate to /app. */
     char browser_url[256];
 #ifdef IGNIKEY_STORE
-    if (ac_cache_warm) {
-        if (uid_param[0])
-            snprintf(browser_url, sizeof(browser_url),
-                     "http://127.0.0.1:%d/app/index.html?%s",
-                     WKALI_PORT, uid_param + 1);
-        else
-            snprintf(browser_url, sizeof(browser_url),
-                     "http://127.0.0.1:%d/app/index.html", WKALI_PORT);
-        wkali_log("[WKALI] Opening warm AppCache UI: %s\n", browser_url);
-    } else
+    (void)ac_cache_warm;
 #endif
     {
         snprintf(browser_url, sizeof(browser_url),
                  "http://127.0.0.1:%d/index.html?v=%s&nocache=1%s",
                  WKALI_PORT, WKAL_FULL_VERSION, uid_param);
-        wkali_log("[WKALI] Opening installer (cache fill): %s\n", browser_url);
+        wkali_log("[WKALI] Opening installer (no auto /app): %s\n", browser_url);
     }
     ps5_launch_browser(browser_url);
 
@@ -285,6 +279,14 @@ int main(void) {
         MHD_stop_daemon(daemon);
 
     sleep(1);
+
+    /* Store: load reboot.elf into elfldr AFTER MHD is down. The previous
+     * approach spawned a sleep(2) thread from /exit while main exited ~1.5s
+     * later, so the send never ran. */
+    if (ps5_reboot_elf_pending()) {
+        wkali_log("[WKALI] Deferred reboot.elf load after MHD stop\n");
+        ps5_reboot_elf_run(); /* does not return on success */
+    }
 
     return 0;
 }

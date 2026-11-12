@@ -1,6 +1,6 @@
 (function (g) {
 'use strict';
-/* WK Autoloader Store build: local only. Upstream GitHub update checker removed. */
+/* WK Store build: local only. Upstream GitHub update checker removed. */
 var W = g.WKAL = g.WKAL || {};
 W.selfupd = W.selfupd || {};
 

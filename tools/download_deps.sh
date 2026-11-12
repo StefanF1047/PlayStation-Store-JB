@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Release tree marker: v1.0.0
 # Download the shared ps5-elfldr ELF, the ps5-unified-autoloader payload
-# ELF, the Payload Manager ELF, and (for Hybrid) the current Elf Launcher tip.
+# ELF, and (for Hybrid) the current Elf Launcher tip.
 #
 #   third_party/ps5-elfldr             -> frontend/autoloader/shared/elfldr-ps5.elf
 #   third_party/ps5-unified-autoloader -> frontend/autoloader/payloads/payload.elf
-#   itsPLK/ps5-payload-manager@v0.6.3  -> frontend/autoloader/payloads/pldmgr.elf
 #   X-F1REBALL-X/elf-launcher (tip)    -> frontend/autoloader/payloads/elf-launcher.elf
 #
 # The shared elfldr is used by the slopkit chain (7.00-12.00); umtx2
@@ -36,7 +35,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Shared elfldr (same ELF across all exploit chains)
 ELFLDR_SUBMODULE="$ROOT/third_party/ps5-elfldr"
 ELFLDR_REPO="itsPLK/ps5-elfldr"
-ELFLDR_TAG="v0.24-148b71c"
+ELFLDR_TAG="v0.27-wk1"
 ELFLDR_DEST="$ROOT/frontend/autoloader/shared/elfldr-ps5.elf"
 
 # Bundled autoload payload (Payload Manager / unified-autoloader)
@@ -44,31 +43,17 @@ PAYLOAD_SUBMODULE="$ROOT/third_party/ps5-unified-autoloader"
 PAYLOAD_REPO="itsPLK/ps5-unified-autoloader"
 PAYLOAD_DEST="$ROOT/frontend/autoloader/payloads/payload.elf"
 
-# Standalone Payload Manager (splash choice payload-manager -> pldmgr.elf).
-# Pinned release; local copies (docs/ or sibling relapse tree) win when present.
-PLDMGR_REPO="itsPLK/ps5-payload-manager"
-PLDMGR_TAG="v0.6.3"
-PLDMGR_PINNED_SHA=2a42054fd9725e1d9595ff4add95abc30e5b49446fcdcb96c06775a376a841c4
-PLDMGR_DEST="$ROOT/frontend/autoloader/payloads/pldmgr.elf"
-PLDMGR_LOCAL_CANDIDATES=(
-    "$ROOT/docs/payloads/pldmgr.elf"
-    "/workspace/ps5-elfs/homebrew/payload-manager.elf"
-    "/workspace/elf-launcher-data-new/apps/payload-manager.elf"
-    "$ROOT/../elf-launcher-data-new/apps/payload-manager.elf"
-    "/workspace/wk-autoloader-relapse/frontend/autoloader/payloads/pldmgr.elf"
-    "$ROOT/../wk-autoloader-relapse/frontend/autoloader/payloads/pldmgr.elf"
-)
 
-# Hybrid Elf Launcher tip: prefer on-disk sibling launcher/elf-launcher.elf.
-# NEVER pin an old SHA that rejects a newer local (that would downgrade the
-# console when Hybrid-down sends). Fall back to latest GitHub release asset.
+# Recovery tip: 2.1.6.
+# Verify exact bytes; never replace it with a sibling headless/latest build.
 ELFLAUNCHER_REPO="X-F1REBALL-X/elf-launcher"
-ELFLAUNCHER_TAG="${ELFLAUNCHER_TAG:-}"
+ELFLAUNCHER_TAG="v2.1.6"
+ELFLAUNCHER_PINNED_SHA="5c4a9c3146cf7ac14ce0dab35358eb5ab9cd17c647735d9fcd0932913ac2a9d2"
 ELFLAUNCHER_DEST="$ROOT/frontend/autoloader/payloads/elf-launcher.elf"
 ELFLAUNCHER_LOCAL_CANDIDATES=(
-    "/workspace/elf-launcher/launcher/elf-launcher.elf"
-    "$ROOT/../elf-launcher/launcher/elf-launcher.elf"
+    "$ELFLAUNCHER_DEST"
     "$ROOT/docs/payloads/elf-launcher.elf"
+    "$ROOT/../elf-launcher/launcher/elf-launcher.elf"
 )
 
 # Fetch the pinned release, verify the payload, and download it if needed.
@@ -202,7 +187,8 @@ fi
 PAYLOAD_TAG=$(git -C "$PAYLOAD_SUBMODULE" describe --tags --always)
 
 OVERLAY_ELFLDR="$ROOT/third_party/public-payloads/elfldr-ps5.elf"
-if [ -f "$OVERLAY_ELFLDR" ]; then
+ELFLDR_PINNED_SHA="200c256efc46495a543becc450355ac67dfaf93aea50b45b5d77f37a6ee24485"
+if [ -f "$OVERLAY_ELFLDR" ] && [ "$(sha256sum "$OVERLAY_ELFLDR" | awk '{print $1}')" = "$ELFLDR_PINNED_SHA" ]; then
   mkdir -p "$(dirname "$ELFLDR_DEST")"
   cp -f "$OVERLAY_ELFLDR" "$ELFLDR_DEST"
   echo "shared elfldr: using third_party/public-payloads/elfldr-ps5.elf (skip download)"
@@ -216,6 +202,12 @@ else
   }
 fi
 
+# Reject any stale fallback/overlay that is not the proven elfldr.
+if [ "$(sha256sum "$ELFLDR_DEST" | awk '{print $1}')" != "$ELFLDR_PINNED_SHA" ]; then
+  echo "Error: shared elfldr is not v0.27-wk1" >&2
+  exit 1
+fi
+
 download_release "$PAYLOAD_REPO" "$PAYLOAD_TAG" "$PAYLOAD_DEST" || {
   if [ -f "$PAYLOAD_DEST" ]; then
     echo "warning: unified-autoloader download failed; keeping existing $PAYLOAD_DEST"
@@ -224,37 +216,6 @@ download_release "$PAYLOAD_REPO" "$PAYLOAD_TAG" "$PAYLOAD_DEST" || {
   fi
 }
 
-# Prefer a local/bundled pldmgr only when it matches the pinned sha.
-pldmgr_from_local() {
-    local src sha
-    for src in "${PLDMGR_LOCAL_CANDIDATES[@]}"; do
-        if [ -f "$src" ]; then
-            sha=$(sha256sum "$src" | awk '{print $1}')
-            if [ -n "$PLDMGR_PINNED_SHA" ] && [ "$sha" != "$PLDMGR_PINNED_SHA" ]; then
-                echo "pldmgr: skip $src (sha $sha != pinned $PLDMGR_PINNED_SHA)"
-                continue
-            fi
-            mkdir -p "$(dirname "$PLDMGR_DEST")"
-            cp -f "$src" "$PLDMGR_DEST"
-            if [ -f "$src.sha256" ]; then cp -f "$src.sha256" "$PLDMGR_DEST.sha256"; fi
-            echo "pldmgr: pinned local copy $src -> $PLDMGR_DEST"
-            return 0
-        fi
-    done
-    if [ -f "$PLDMGR_DEST" ]; then
-        sha=$(sha256sum "$PLDMGR_DEST" | awk '{print $1}')
-        if [ -z "$PLDMGR_PINNED_SHA" ] || [ "$sha" = "$PLDMGR_PINNED_SHA" ]; then
-            echo "pldmgr: keeping verified bundled $PLDMGR_DEST"
-            return 0
-        fi
-        echo "pldmgr: bundled sha $sha is not pinned; will re-fetch"
-    fi
-    return 1
-}
-
-# SKIP pldmgr: this Store build seeds tip EL + elfldr only.
-rm -f "$PLDMGR_DEST" "$PLDMGR_DEST.sha256"
-echo "pldmgr: skipped (not bundled in this Store build)"
 
 # WK prelude mark: local sibling only (never fetched from GitHub).
 WKAL_MARK_DEST="$ROOT/frontend/autoloader/payloads/wkal-mark.elf"
@@ -274,86 +235,23 @@ for src in "${WKAL_MARK_LOCAL_CANDIDATES[@]}"; do
     fi
 done
 
-# Prefer any local tip ELF (no SHA pin). Sibling tip wins over docs copy.
+# The patched tip is committed in frontend/ and docs/ for offline builds.
 elflauncher_from_local() {
-    local src
+    local src sha
     for src in "${ELFLAUNCHER_LOCAL_CANDIDATES[@]}"; do
-        if [ -f "$src" ]; then
-            mkdir -p "$(dirname "$ELFLAUNCHER_DEST")"
+        [ -f "$src" ] || continue
+        sha=$(sha256sum "$src" | awk '{print $1}')
+        [ "$sha" = "$ELFLAUNCHER_PINNED_SHA" ] || continue
+        if [ "$src" != "$ELFLAUNCHER_DEST" ]; then
             cp -f "$src" "$ELFLAUNCHER_DEST"
-            echo "elf-launcher: local tip $src -> $ELFLAUNCHER_DEST"
-            ELFLAUNCHER_TAG="${ELFLAUNCHER_TAG:-tip}"
-            return 0
         fi
+        echo "elf-launcher: verified tip 2.1.6 ($sha)"
+        return 0
     done
+    echo "Error: pinned recovery tip missing; rebuild elf-launcher 2.1.6." >&2
     return 1
 }
-
-download_elflauncher_latest() {
-    python3 - "$ELFLAUNCHER_REPO" "$ELFLAUNCHER_DEST" <<'PY'
-import hashlib, json, os, sys, time, urllib.request
-repo, dest = sys.argv[1], sys.argv[2]
-
-def fetch(url, attempts=5):
-    last = None
-    for i in range(attempts):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "wk-autoloader-deps"})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                return r.read()
-        except Exception as e:
-            last = e
-            time.sleep(1 + i)
-    raise last
-
-try:
-    data = fetch(f"https://api.github.com/repos/{repo}/releases/latest")
-    rel = json.loads(data)
-except Exception as exc:
-    print(f"Error: could not fetch latest release ({exc})", file=sys.stderr)
-    sys.exit(1)
-tag = rel.get("tag_name") or "latest"
-asset = None
-for a in rel.get("assets") or []:
-    name = a.get("name") or ""
-    if name == "elf-launcher.elf" or name.endswith("elf-launcher.elf"):
-        asset = a
-        break
-if not asset:
-    for a in rel.get("assets") or []:
-        name = (a.get("name") or "").lower()
-        if name.endswith(".elf") and "launcher" in name and "install" not in name:
-            asset = a
-            break
-if not asset:
-    print("Error: no elf-launcher.elf asset on latest release", file=sys.stderr)
-    sys.exit(1)
-url = asset["browser_download_url"]
-print(f"elf-launcher: downloading {tag} {asset['name']} ...", file=sys.stderr)
-body = fetch(url)
-os.makedirs(os.path.dirname(dest), exist_ok=True)
-with open(dest, "wb") as f:
-    f.write(body)
-digest = hashlib.sha256(body).hexdigest()
-with open(dest + ".sha256", "w") as f:
-    f.write(f"{tag} {digest}\n")
-print(f"elf-launcher: saved {dest} ({tag} {digest[:12]}...)", file=sys.stderr)
-print(tag)
-PY
-}
-
-if ! elflauncher_from_local; then
-  if TAG=$(download_elflauncher_latest); then
-    ELFLAUNCHER_TAG="$TAG"
-  else
-    if [ -f "$ELFLAUNCHER_DEST" ]; then
-      echo "warning: elf-launcher download failed; keeping existing $ELFLAUNCHER_DEST"
-    else
-      echo "Error: elf-launcher.elf missing (no local tip, download failed)." >&2
-      exit 1
-    fi
-  fi
-fi
+elflauncher_from_local
 
 if [ -f "$ELFLAUNCHER_DEST" ]; then
   ELFLAUNCHER_SHA=$(sha256sum "$ELFLAUNCHER_DEST" | awk '{print $1}')

@@ -4,19 +4,16 @@ var W = g.WKAL = g.WKAL || {};
 
 /* Proven startChain timings kept (mirror interval, relapse 12s warn, reveal 500ms). */
 W.startChain = function (skipElfSend) {
-  W.uiLog('WK Autoloader by X-F1REBALL-X', 'success');
   try {
     W.resetTiming();
     W.markTiming('jb_start');
-    var ac = (typeof applicationCache !== 'undefined') ? applicationCache : null;
-    var st = ac ? ac.status : -1;
-    /* 1 = IDLE (master entry already in AppCache). */
-    W.uiLog('[time] page_from_cache status=' + st + (st === 1 ? ' IDLE' : ''), 'info');
   } catch (eT0) {}
+  try { if (W.resetElapsed) W.resetElapsed(); } catch (eRt) {}
+  W.state.jbSuccessLogged = false;
   if (W.els.statusMsg) { W.els.statusMsg.textContent = ''; W.els.statusMsg.style.display = 'none'; }
   W.updateProgress(0, W.t('jailbreakStarted'));
   W.startProgressDriver();
-  W.startElapsed();
+  /* startElapsed armed after iframe request */
   W.startStallWatch();
   W.state.runStage = 'early';
 
@@ -24,12 +21,39 @@ W.startChain = function (skipElfSend) {
   W.state.finished = false;
   W.state.progressDone = false;
   W.state.launcherHttpOpenStarted = false;
+  W.state.payloadLoadingShown = false;
+  try { if (W.uiSetPayload) { W.uiSetPayload('plElfldr', 'WAIT', false); W.uiSetPayload('plLauncher', 'WAIT', false); } } catch (ePl0) {}
 
   if (!W.state.autoloadMsgBound) {
     W.state.autoloadMsgBound = true;
     window.addEventListener('message', function (event) {
       var data = event.data;
       if (!data || data.type !== 'wkal') return;
+      if (data.kind === 'jb-success') {
+        try {
+          if (W.freezeElapsed) W.freezeElapsed(data.at);
+          W.state.jbSuccessLogged = true;
+        } catch (eJb) {}
+        return;
+      }
+      if (data.kind === 'elfldr-ready-ip') {
+        try {
+          function takeIp(v) {
+            if (!v || !/^\d+\.\d+\.\d+\.\d+$/.test(v) || v.indexOf('127.') === 0) return false;
+            if (W.state) W.state.lanIp = v;
+            try { if (W.lsSet) W.lsSet(W.LS_IP_KEY, v); } catch (e0) {}
+            if (W.ui && W.ui.renderHomeInfo) {
+              W.ui._consoleInfoAsked = false;
+              W.ui.renderHomeInfo();
+            }
+            return true;
+          }
+          var ip = data.ip || (W.state && W.state.lanIp) || (W.lsGet && W.lsGet(W.LS_IP_KEY, '')) || '';
+          takeIp(ip);
+          if (W.persistCfiFromLauncher) W.persistCfiFromLauncher(function () {});
+        } catch (eIp) {}
+        return;
+      }
       if (data.kind === 'autoload') {
         W.state.runStage = 'armed';
         W.launcher.onAutoloadResult(data);
@@ -51,27 +75,12 @@ W.startChain = function (skipElfSend) {
     W.els.detectChip.className = 'chip ok';
   }
 
-  /* Known console mirror => chain skips the bundled ELF, mirror is sent after JB.
-     Never for Payload Manager: forceAutoloadName=pldmgr.elf keeps the same Relapse/umtx2 path. */
-  var wantPm = (W.state.forceAutoloadName === 'pldmgr.elf')
-    || (W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER)
-    || (W.getLauncherChoice && W.getLauncherChoice() === W.CHOICE_PAYLOAD_MANAGER);
-  if (wantPm) {
-    /* pldmgr disabled */ W.state.forceAutoloadName = W.state.forceAutoloadName;
-    W.state.elMirrorFirst = false;
-    W.state.elfHttpAlreadyUp = false;
-  } else {
-    W.state.elMirrorFirst = !skipElfSend && !W.state.forceAutoloadName && !W.state.elfHttpAlreadyUp
-      && !!(W.elauto && W.elauto.mirrorFirstOk(picked));
-  }
-
-  /* Payload Manager removed: never send/start pldmgr. */
-  if (W.state.forceAutoloadName === 'pldmgr.elf') W.state.forceAutoloadName = null;
-  wantPm = false;
-  /* Where the Elf Launcher that ends up on :1000 comes from (no-downgrade check). */
-  W.state.elRunSrc = wantPm ? 'pldmgr' : (W.state.elfHttpAlreadyUp ? 'preexisting' : (W.state.elMirrorFirst ? 'mirror' : 'bundled'));
-  /* Tip in chain (1.2.0 style) via autoloadElfName; mirror-first still skips. */
-  var autoloadName = W.state.forceAutoloadName || (W.autoloadElfName ? W.autoloadElfName() : 'elf-launcher.elf');
+  /* Bootstrap only the installed EL executable after JB. Never run a WK payload queue. */
+  W.state.elInstalledFirst = !skipElfSend && !W.state.forceAutoloadName && !W.state.elfHttpAlreadyUp
+    && !!(W.elboot && W.elboot.installedFirstOk(picked));
+  /* Out-of-chain tip: never put tip/EL in the Relapse chain (wkal-skip). */
+  var autoloadName = (skipElfSend || !W.state.forceAutoloadName) ? 'wkal-skip' : W.state.forceAutoloadName;
+  if (!W.state.updateOnlyMode && !W.state.pendingSelfUpdate) autoloadName = 'wkal-skip';
   var urls = W.buildExploitUrls(autoloadName);
   W.state.UMTX2_URL = urls.umtx2;
   W.state.P2JB_URL = urls.p2jb;
@@ -82,16 +91,7 @@ W.startChain = function (skipElfSend) {
     : picked === 'poops' ? urls.poops
     : urls.relapse;
 
-  if (wantPm) {
-    W.uiLog('Post-JB launcher: Payload Manager (send ' + autoloadName + ' then open :8084)', 'info');
-  } else {
-    W.uiLog('Post-JB launcher: ' + (W.state.elfHttpAlreadyUp
-      ? 'Elf Launcher already up (headless; no Store navigate)'
-      : W.state.elMirrorFirst
-        ? 'Elf Launcher console mirror ' + W.elauto.mirrorLabel() + ' (bundled ' + W.BUNDLED_ELFLAUNCHER_VER + ' = fallback)'
-        : 'Elf Launcher Hybrid (send ' + autoloadName + ' ' + W.BUNDLED_ELFLAUNCHER_VER + ' then tip headless)'), 'info');
-  }
-  W.uiLog('Chain: ' + picked + ' (autoload=' + autoloadName + ')', 'info');
+  W.uiLog('Chain: ' + picked + ' + elfldr', 'info');
 
   if (W.els.splash) {
     W.els.splash.classList.add('hide');
@@ -99,8 +99,8 @@ W.startChain = function (skipElfSend) {
     if (W.els.loader) W.els.loader.hidden = false;
   }
 
-  /* Slower iframe scrape = less main-thread work while WebKit/kernel run. */
-  var mirrorMs = picked === 'p2jb' ? 1500 : 1200;
+  /* Rare scrape = less main-thread work so Relapse can finish closer to ~1s. */
+  var mirrorMs = picked === 'p2jb' ? 2500 : 2200;
   function armMirrorTimer(ms) {
     if (W.state.mirrorTimer) {
       clearInterval(W.state.mirrorTimer);
@@ -108,15 +108,12 @@ W.startChain = function (skipElfSend) {
     }
     W.state.mirrorTimer = setInterval(function () {
       if (W.mirrors && W.mirrors.mirrorExploit) W.mirrors.mirrorExploit();
-      /* Mark armed once progress moves past early webkit stage. */
       if (W.state.progressPct >= 32 && W.state.runStage === 'early') {
         W.state.runStage = 'armed';
-        /* Relapse: once armed, pause fake progress creep (host-only). */
         if (picked === 'relapse' && W.enterKernelQuiet) W.enterKernelQuiet();
       }
-      /* Optionally slow mirror polling during Relapse kernel quiet (500ms -> 1500ms). */
-      if (picked === 'relapse' && W.state.progressKernelQuiet && mirrorMs < 2000) {
-        mirrorMs = 2000;
+      if (picked === 'relapse' && W.state.progressKernelQuiet && mirrorMs < 3000) {
+        mirrorMs = 3000;
         armMirrorTimer(mirrorMs);
       }
     }, ms);
@@ -151,9 +148,12 @@ W.startChain = function (skipElfSend) {
     } catch (eOn) {}
     W.els.exploit.src = W.state.EXPLOIT_URL;
     try { W.markTiming('iframe_request'); } catch (eR) {}
+    /* Start the clock at iframe request so a fast fail is not stuck at 0.00s.
+       Starting WebKit may later rebase elapsedStart to the Relapse line stamp. */
+    try { if (W.startElapsed) W.startElapsed(); } catch (ePe) {}
     /* Real milestone: exploit document requested (quiet UI has no fake creep). */
     if (W.bumpProgressFloor) W.bumpProgressFloor(5);
-    W.uiLog('Exploit iframe: ' + W.state.EXPLOIT_URL, 'info');
+    W.uiLog('Starting WebKit / Relapse', 'info');
   } catch (e2) {
     W.uiLog('Failed to start exploit iframe: ' + (e2 && e2.message ? e2.message : e2), 'error');
     W.finishProgressFail(W.t('jailbreakFail'));
@@ -180,26 +180,13 @@ W.start = function () {
   }
   W.state.launcherHttpOpenStarted = false;
   W.state.elfHttpAlreadyUp = false;
-  W.state.elMirrorFirst = false;
-  W.state.elRefreshRan = false;
+  try { if (W.elboot) W.elboot._sent = false; } catch (eSent) {}
+  W.state.elInstalledFirst = false;
   W.state.launcherChoice = W.getLauncherChoice ? W.getLauncherChoice() : W.CHOICE_ELF_LAUNCHER;
 
   if (W.state.pendingSelfUpdate || W.state.updateOnlyMode) {
     W.state.updateOnlyMode = true;
-    /* Respect splash launcher choice on update-only / pendingSelfUpdate.
-       PM: never force Elf Hybrid / :1000-only; always full chain + pldmgr.elf.
-       Elf: only then probe :1000 / force elf-launcher.elf for WK install. */
-    var wantPmUpdate = (W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER)
-      || (W.state.forceAutoloadName === 'pldmgr.elf')
-      || (W.getLauncherChoice && W.getLauncherChoice() === W.CHOICE_PAYLOAD_MANAGER);
-    if (wantPmUpdate) {
-      /* pldmgr disabled */ W.state.forceAutoloadName = W.state.forceAutoloadName;
-      W.state.elfHttpAlreadyUp = false;
-      W.state.elMirrorFirst = false;
-      W.uiLog('[update] Payload Manager selected - full chain with pldmgr.elf (not Elf Hybrid)', 'info');
-      W.startChain(false);
-      return;
-    }
+    /* Probe :1000 / force elf-launcher.elf for WK install. */
     W.launcher.probeElfLauncherHttp(function (up) {
       W.state.elfHttpAlreadyUp = !!up;
       if (up) {
@@ -214,41 +201,11 @@ W.start = function () {
     return;
   }
 
-  /* Payload Manager: same JB chain as Elf Launcher; only the post-JB ELF differs. */
-  var wantPm = W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER;
-  if (wantPm) {
-    /* pldmgr disabled */ W.state.forceAutoloadName = W.state.forceAutoloadName;
-    W.state.elfHttpAlreadyUp = false;
-    W.state.elMirrorFirst = false;
-    W.uiLog('Post-JB target: Payload Manager (pldmgr.elf -> :8084)', 'info');
-  } else {
-    W.state.forceAutoloadName = W.state.forceAutoloadName || '';
-  }
+  W.state.forceAutoloadName = W.state.forceAutoloadName || '';
 
-  /* Start immediately after countdown. Short probe only - never wait seconds. */
-  var started = false;
-  function arm(up) {
-    if (started) return;
-    started = true;
-    /* PM never uses Elf Hybrid open-only; always run full chain + send pldmgr. */
-    if (wantPm) {
-      W.state.elfHttpAlreadyUp = false;
-      W.startChain(false);
-      return;
-    }
-    W.state.elfHttpAlreadyUp = !!up;
-    if (up) {
-      W.uiLog(':1000 is up, Hybrid open-only (no ELF send).', 'success');
-      W.startChain(true);
-    } else {
-      W.uiLog('Starting chain, will send elf-launcher.elf after JB if needed.', 'info');
-      W.startChain(false);
-    }
-  }
-  if (!wantPm && W.launcher && W.launcher.probeQuick) {
-    W.launcher.probeQuick(function (up) { arm(!!up); });
-  }
-  setTimeout(function () { arm(false); }, wantPm ? 0 : 250);
+  /* Chain = Relapse JB + elfldr only. Tip+open :1000 happens in openCompanionPage after. */
+  W.state.elfHttpAlreadyUp = false;
+  W.startChain(true);
 };
 
 window.wkalAfterLangChange = function () {
@@ -258,13 +215,6 @@ window.wkalAfterLangChange = function () {
   if (go && !W.state.chainStarted && !go.disabled) go.textContent = W.t('startJailbreak');
   if (cancel) cancel.textContent = W.t('cancel');
   if (W.state.selfUpdateInfo && W.selfupd && W.selfupd.paint) W.selfupd.paint();
-  if (W.els.elapsedMsg && !W.state.elapsedTimer) {
-    if (W.state.elapsedStart && W.paintElapsedLine) {
-      W.paintElapsedLine(W.formatElapsed(Date.now() - W.state.elapsedStart));
-    } else {
-      W.els.elapsedMsg.textContent = W.t('elapsed', { t: '0:00' });
-    }
-  }
   if (W.ui && W.ui.applyLauncherChoice) W.ui.applyLauncherChoice(W.getLauncherChoice());
 };
 
@@ -276,27 +226,27 @@ window.addEventListener('load', function () {
   }
   W.ui.bindTheme();
   W.ui.bindToast();
+  if (W.ui.bindPowerTiles) W.ui.bindPowerTiles();
   /* Choice first so a later bindHome throw cannot leave Start/choice dead. */
   try { if (W.ui.bindLauncherChoice) W.ui.bindLauncherChoice(); } catch (eChoice) {}
   try { W.ui.bindHome(); } catch (eHome) {}
-  try { if (W.selfupd && W.selfupd.bind) W.selfupd.bind(); } catch (eUpd) {}
+  /* self-update disabled */
 
-  /* Keep top-bar version in sync with the same string self-update reads. */
+  /* Visible version comes from Makefile STORE_VERSION, injected at registry
+     build as [[STORE_VERSION_PLACEHOLDER]]. Prefer selfupd.currentAppVersion
+     when that script is loaded; otherwise use the injected token. */
   try {
     var ver = (W.selfupd && W.selfupd.currentAppVersion) ? W.selfupd.currentAppVersion() : '';
+    if (!ver || String(ver).indexOf('[[') >= 0) ver = '[[STORE_VERSION_PLACEHOLDER]]';
     var appVer = document.getElementById('appVer');
-    if (ver && appVer && (appVer.textContent||'').indexOf('[[') >= 0) appVer.textContent = 'v' + ver;
+    var storeVer = document.getElementById('storeVer');
+    if (ver && String(ver).indexOf('[[') < 0) {
+      if (appVer) appVer.textContent = 'v' + ver;
+      if (storeVer) storeVer.textContent = 'v' + ver;
+    }
   } catch (eV) {}
 
-  /* Defer GitHub self-update check so splash stays snappy. */
-  setTimeout(function () {
-    if (W.selfupd && W.selfupd.check && !W.state.chainStarted) W.selfupd.check();
-  }, 2500);
-  /* Elf Launcher latest (for the post-JB mirror refresh). Splash only. */
-  setTimeout(function () {
-    if (W.elauto && W.elauto.prefetch && !W.state.chainStarted) W.elauto.prefetch();
-  }, 900);
-
+  /* self-update check disabled */
   /* First-open AppCache fill: show percent while downloading. */
   (function bindCacheFill() {
     var box = document.getElementById('cacheFill');
@@ -323,18 +273,18 @@ window.addEventListener('load', function () {
         if (e && e.total > 0) p = Math.floor((e.loaded * 100) / e.total);
         else if (e && e.loaded > 0) p = Math.min(99, Math.floor(e.loaded));
       } catch (e1) {}
-      paint(p, 'Caching files…');
+      paint(p, 'Caching files...');
     }
     try {
-      ac.addEventListener('checking', function () { paint(Math.max(best, 1), 'Checking cache…'); }, false);
-      ac.addEventListener('downloading', function () { paint(Math.max(best, 2), 'Downloading…'); }, false);
+      ac.addEventListener('checking', function () { paint(Math.max(best, 1), 'Checking cache...'); }, false);
+      ac.addEventListener('downloading', function () { paint(Math.max(best, 2), 'Downloading...'); }, false);
       ac.addEventListener('progress', onProgress, false);
       ac.addEventListener('cached', function () { paint(100, 'Ready'); setTimeout(hide, 350); }, false);
       ac.addEventListener('noupdate', hide, false);
       ac.addEventListener('updateready', function () { paint(100, 'Ready'); setTimeout(hide, 350); }, false);
       ac.addEventListener('error', hide, false);
       ac.addEventListener('obsolete', hide, false);
-      if (ac.status === 2 || ac.status === 3) paint(Math.max(best, 1), 'Caching…');
+      if (ac.status === 2 || ac.status === 3) paint(Math.max(best, 1), 'Caching...');
     } catch (e2) {}
   })();
 

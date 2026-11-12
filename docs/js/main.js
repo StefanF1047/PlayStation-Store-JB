@@ -4,13 +4,15 @@ var W = g.WKAL = g.WKAL || {};
 
 /* Proven startChain timings kept (mirror interval, relapse 12s warn, reveal 500ms). */
 W.startChain = function (skipElfSend) {
-  W.uiLog('WK Autoloader Store by X-F1REBALL-X', 'success');
-  if (W.els.statusMsg) W.els.statusMsg.textContent = W.t('jailbreakStarted');
+  try {
+    W.resetTiming();
+    W.markTiming('jb_start');
+  } catch (eT0) {}
+  W.state.jbSuccessLogged = false;
+  if (W.els.statusMsg) { W.els.statusMsg.textContent = ''; W.els.statusMsg.style.display = 'none'; }
   W.updateProgress(0, W.t('jailbreakStarted'));
   W.startProgressDriver();
-  W.state.runRecorded = false;
-  W.state.runRecordedResult = '';
-  W.startElapsed();
+  /* startElapsed armed after iframe request */
   W.startStallWatch();
   W.state.runStage = 'early';
 
@@ -18,19 +20,48 @@ W.startChain = function (skipElfSend) {
   W.state.finished = false;
   W.state.progressDone = false;
   W.state.launcherHttpOpenStarted = false;
+  W.state.payloadLoadingShown = false;
+  try { if (W.uiSetPayload) { W.uiSetPayload('plElfldr', 'WAIT', false); W.uiSetPayload('plLauncher', 'WAIT', false); } } catch (ePl0) {}
 
-  window.addEventListener('message', function (event) {
-    var data = event.data;
-    if (!data || data.type !== 'wkal') return;
-    if (data.kind === 'autoload') {
-      W.state.runStage = 'armed';
-      W.launcher.onAutoloadResult(data);
-    }
-  });
+  if (!W.state.autoloadMsgBound) {
+    W.state.autoloadMsgBound = true;
+    window.addEventListener('message', function (event) {
+      var data = event.data;
+      if (!data || data.type !== 'wkal') return;
+      if (data.kind === 'jb-success') {
+        try {
+          if (W.freezeElapsed) W.freezeElapsed(data.at);
+          W.state.jbSuccessLogged = true;
+        } catch (eJb) {}
+        return;
+      }
+      if (data.kind === 'elfldr-ready-ip') {
+        try {
+          function takeIp(v) {
+            if (!v || !/^\d+\.\d+\.\d+\.\d+$/.test(v) || v.indexOf('127.') === 0) return false;
+            if (W.state) W.state.lanIp = v;
+            try { if (W.lsSet) W.lsSet(W.LS_IP_KEY, v); } catch (e0) {}
+            if (W.ui && W.ui.renderHomeInfo) {
+              W.ui._consoleInfoAsked = false;
+              W.ui.renderHomeInfo();
+            }
+            return true;
+          }
+          var ip = data.ip || (W.state && W.state.lanIp) || (W.lsGet && W.lsGet(W.LS_IP_KEY, '')) || '';
+          takeIp(ip);
+          if (W.persistCfiFromLauncher) W.persistCfiFromLauncher(function () {});
+        } catch (eIp) {}
+        return;
+      }
+      if (data.kind === 'autoload') {
+        W.state.runStage = 'armed';
+        W.launcher.onAutoloadResult(data);
+      }
+    });
+  }
 
   var fw = W.detectFirmware();
   var picked = W.pickExploit();
-  if (picked && picked !== 'relapse') picked = 'relapse';
   if (!picked) {
     W.setMeta(fw ? fw.str : '-', 'unsupported');
     W.finishProgressFail(W.t('jailbreakFail'));
@@ -43,27 +74,50 @@ W.startChain = function (skipElfSend) {
     W.els.detectChip.className = 'chip ok';
   }
 
-  var autoloadName = W.state.forceAutoloadName || (skipElfSend ? 'wkal-skip' : W.autoloadElfName());
+  /* Bootstrap only the installed EL executable after JB. Never run a WK payload queue. */
+  W.state.elInstalledFirst = !skipElfSend && !W.state.forceAutoloadName && !W.state.elfHttpAlreadyUp
+    && !!(W.elboot && W.elboot.installedFirstOk(picked));
+  /* Out-of-chain tip: never put tip/EL in the Relapse chain (wkal-skip). */
+  var autoloadName = (skipElfSend || !W.state.forceAutoloadName) ? 'wkal-skip' : W.state.forceAutoloadName;
+  if (!W.state.updateOnlyMode && !W.state.pendingSelfUpdate) autoloadName = 'wkal-skip';
   var urls = W.buildExploitUrls(autoloadName);
-  W.state.UMTX2_URL = '';
-  W.state.P2JB_URL = '';
+  W.state.UMTX2_URL = urls.umtx2;
+  W.state.P2JB_URL = urls.p2jb;
   W.state.RELAPSE_URL = urls.relapse;
-  W.state.POOPS_URL = '';
-  W.state.EXPLOIT_URL = urls.relapse;
+  W.state.POOPS_URL = urls.poops;
+  W.state.EXPLOIT_URL = picked === 'umtx2' ? urls.umtx2
+    : picked === 'p2jb' ? urls.p2jb
+    : picked === 'poops' ? urls.poops
+    : urls.relapse;
 
-  W.uiLog('Post-JB launcher: ' + (W.state.elfHttpAlreadyUp
-    ? 'Elf Launcher Hybrid (open :1000 only)'
-    : 'Elf Launcher Hybrid (send ' + autoloadName + ' then open :1000)'), 'info');
-  W.uiLog('Chain: ' + picked, 'info');
+  W.uiLog('Chain: ' + picked + ' + elfldr', 'info');
 
-  try { document.body.classList.add('running'); } catch (eRun) {}
-  if (W.els.loader) W.els.loader.hidden = false;
+  if (W.els.splash) {
+    W.els.splash.classList.add('hide');
+    W.els.splash.hidden = true;
+    if (W.els.loader) W.els.loader.hidden = false;
+  }
 
-  W.state.mirrorTimer = setInterval(function () {
-    if (W.mirrors && W.mirrors.mirrorExploit) W.mirrors.mirrorExploit();
-    /* Mark armed once progress moves past early webkit stage. */
-    if (W.state.progressPct >= 32 && W.state.runStage === 'early') W.state.runStage = 'armed';
-  }, picked === 'p2jb' ? 1000 : 500);
+  /* Rare scrape = less main-thread work so Relapse can finish closer to ~1s. */
+  var mirrorMs = picked === 'p2jb' ? 2500 : 2200;
+  function armMirrorTimer(ms) {
+    if (W.state.mirrorTimer) {
+      clearInterval(W.state.mirrorTimer);
+      W.state.mirrorTimer = 0;
+    }
+    W.state.mirrorTimer = setInterval(function () {
+      if (W.mirrors && W.mirrors.mirrorExploit) W.mirrors.mirrorExploit();
+      if (W.state.progressPct >= 32 && W.state.runStage === 'early') {
+        W.state.runStage = 'armed';
+        if (picked === 'relapse' && W.enterKernelQuiet) W.enterKernelQuiet();
+      }
+      if (picked === 'relapse' && W.state.progressKernelQuiet && mirrorMs < 3000) {
+        mirrorMs = 3000;
+        armMirrorTimer(mirrorMs);
+      }
+    }, ms);
+  }
+  armMirrorTimer(mirrorMs);
 
   try {
     if (picked === 'umtx2') {
@@ -84,7 +138,26 @@ W.startChain = function (skipElfSend) {
 
   W.state.chainStarted = true;
   if (picked === 'p2jb') W.clearSlopkitState();
-  try { W.els.exploit.src = W.state.EXPLOIT_URL; } catch (e2) {}
+  try {
+    if (!W.els.exploit) throw new Error('missing #exploit iframe');
+    try {
+      W.els.exploit.onload = function () {
+        try { W.markTiming('iframe_load'); } catch (eL) {}
+      };
+    } catch (eOn) {}
+    W.els.exploit.src = W.state.EXPLOIT_URL;
+    try { W.markTiming('iframe_request'); } catch (eR) {}
+    /* Timer starts on Relapse Starting WebKit (mirrors), not iframe request.
+       First JB cold-load of modules must not inflate the clock vs second JB. */
+    try { W.paintElapsedLine(W.formatElapsed(0)); } catch (ePe) {}
+    /* Real milestone: exploit document requested (quiet UI has no fake creep). */
+    if (W.bumpProgressFloor) W.bumpProgressFloor(5);
+    W.uiLog('Starting WebKit / Relapse', 'info');
+  } catch (e2) {
+    W.uiLog('Failed to start exploit iframe: ' + (e2 && e2.message ? e2.message : e2), 'error');
+    W.finishProgressFail(W.t('jailbreakFail'));
+    return;
+  }
 
   if (picked === 'relapse') {
     setTimeout(function () {
@@ -106,10 +179,12 @@ W.start = function () {
   }
   W.state.launcherHttpOpenStarted = false;
   W.state.elfHttpAlreadyUp = false;
-  W.state.launcherChoice = W.CHOICE_ELF_LAUNCHER;
+  W.state.elInstalledFirst = false;
+  W.state.launcherChoice = W.getLauncherChoice ? W.getLauncherChoice() : W.CHOICE_ELF_LAUNCHER;
 
   if (W.state.pendingSelfUpdate || W.state.updateOnlyMode) {
     W.state.updateOnlyMode = true;
+    /* Probe :1000 / force elf-launcher.elf for WK install. */
     W.launcher.probeElfLauncherHttp(function (up) {
       W.state.elfHttpAlreadyUp = !!up;
       if (up) {
@@ -124,36 +199,21 @@ W.start = function () {
     return;
   }
 
-  /* Start immediately after countdown. Short probe only - never wait seconds. */
-  var started = false;
-  function arm(up) {
-    if (started) return;
-    started = true;
-    W.state.elfHttpAlreadyUp = !!up;
-    if (up) {
-      W.uiLog(':1000 is up, Hybrid open-only (no ELF send).', 'success');
-      W.startChain(true);
-    } else {
-      W.uiLog('Starting chain, will send elf-launcher.elf after JB if needed.', 'info');
-      W.startChain(false);
-    }
-  }
-  if (W.launcher && W.launcher.probeQuick) {
-    W.launcher.probeQuick(function (up) { arm(!!up); });
-  }
-  setTimeout(function () { arm(false); }, 250);
+  W.state.forceAutoloadName = W.state.forceAutoloadName || '';
+
+  /* Chain = Relapse JB + elfldr only. Tip+open :1000 happens in openCompanionPage after. */
+  W.state.elfHttpAlreadyUp = false;
+  W.startChain(true);
 };
 
 window.wkalAfterLangChange = function () {
   W.ui.syncChainUi();
   var go = document.getElementById('startJailbreak');
   var cancel = document.getElementById('cancelAutoStart');
-  if (go && !W.state.chainStarted && !go.disabled) go.textContent = W.t('startJailbreak') || 'START';
+  if (go && !W.state.chainStarted && !go.disabled) go.textContent = W.t('startJailbreak');
   if (cancel) cancel.textContent = W.t('cancel');
   if (W.state.selfUpdateInfo && W.selfupd && W.selfupd.paint) W.selfupd.paint();
-  if (W.els.elapsedMsg && !W.state.elapsedTimer) {
-    W.els.elapsedMsg.textContent = W.t('elapsed', { t: '0:00' });
-  }
+  if (W.ui && W.ui.applyLauncherChoice) W.ui.applyLauncherChoice(W.getLauncherChoice());
 };
 
 window.addEventListener('load', function () {
@@ -164,23 +224,73 @@ window.addEventListener('load', function () {
   }
   W.ui.bindTheme();
   W.ui.bindToast();
-  W.ui.bindHome();
-  if (W.selfupd && W.selfupd.bind) W.selfupd.bind();
+  if (W.ui.bindPowerTiles) W.ui.bindPowerTiles();
+  /* Choice first so a later bindHome throw cannot leave Start/choice dead. */
+  try { if (W.ui.bindLauncherChoice) W.ui.bindLauncherChoice(); } catch (eChoice) {}
+  try { W.ui.bindHome(); } catch (eHome) {}
+  /* self-update disabled */
 
-  /* Keep top-bar version in sync with the same string self-update reads. */
+  /* Visible version comes from Makefile STORE_VERSION, injected at registry
+     build as [[STORE_VERSION_PLACEHOLDER]]. Prefer selfupd.currentAppVersion
+     when that script is loaded; otherwise use the injected token. */
   try {
     var ver = (W.selfupd && W.selfupd.currentAppVersion) ? W.selfupd.currentAppVersion() : '';
+    if (!ver || String(ver).indexOf('[[') >= 0) ver = '[[STORE_VERSION_PLACEHOLDER]]';
     var appVer = document.getElementById('appVer');
-    if (ver && appVer && (appVer.textContent||'').indexOf('[[') >= 0) appVer.textContent = 'v' + ver;
+    var storeVer = document.getElementById('storeVer');
+    if (ver && String(ver).indexOf('[[') < 0) {
+      if (appVer) appVer.textContent = 'v' + ver;
+      if (storeVer) storeVer.textContent = 'v' + ver;
+    }
   } catch (eV) {}
 
-  /* Defer GitHub self-update check so splash stays snappy. */
-  setTimeout(function () {
-    if (W.selfupd && W.selfupd.check && !W.state.chainStarted) W.selfupd.check();
-  }, 2500);
+  /* self-update check disabled */
+  /* First-open AppCache fill: show percent while downloading. */
+  (function bindCacheFill() {
+    var box = document.getElementById('cacheFill');
+    var pctEl = document.getElementById('cacheFillPct');
+    var barEl = document.getElementById('cacheFillBar');
+    var subEl = document.getElementById('cacheFillSub');
+    if (!box || !pctEl || !barEl) return;
+    var ac = null;
+    try { ac = (typeof applicationCache !== 'undefined') ? applicationCache : null; } catch (e0) { return; }
+    if (!ac) return;
+    var best = 0;
+    function paint(p, sub) {
+      if (p < best) p = best; else best = p;
+      p = Math.max(0, Math.min(100, p | 0));
+      pctEl.textContent = p + '%';
+      barEl.style.width = p + '%';
+      if (sub && subEl) subEl.textContent = sub;
+      box.hidden = false;
+    }
+    function hide() { box.hidden = true; }
+    function onProgress(e) {
+      var p = 0;
+      try {
+        if (e && e.total > 0) p = Math.floor((e.loaded * 100) / e.total);
+        else if (e && e.loaded > 0) p = Math.min(99, Math.floor(e.loaded));
+      } catch (e1) {}
+      paint(p, 'Caching filesג€¦');
+    }
+    try {
+      ac.addEventListener('checking', function () { paint(Math.max(best, 1), 'Checking cacheג€¦'); }, false);
+      ac.addEventListener('downloading', function () { paint(Math.max(best, 2), 'Downloadingג€¦'); }, false);
+      ac.addEventListener('progress', onProgress, false);
+      ac.addEventListener('cached', function () { paint(100, 'Ready'); setTimeout(hide, 350); }, false);
+      ac.addEventListener('noupdate', hide, false);
+      ac.addEventListener('updateready', function () { paint(100, 'Ready'); setTimeout(hide, 350); }, false);
+      ac.addEventListener('error', hide, false);
+      ac.addEventListener('obsolete', hide, false);
+      if (ac.status === 2 || ac.status === 3) paint(Math.max(best, 1), 'Cachingג€¦');
+    } catch (e2) {}
+  })();
+
   try {
-    W.uiLog('[boot] ui ready in ' + (Date.now() - t0) + 'ms', 'info');
+    var ac = (typeof applicationCache !== 'undefined') ? applicationCache : null;
+    var st = ac ? ac.status : -1;
+    W.uiLog('[boot] ui ready in ' + (Date.now() - t0) + 'ms; AppCache status=' + st
+      + (st === 1 ? ' (IDLE/cached)' : ''), 'info');
   } catch (e) {}
-  try { console.log('[wkal] splash ready', Date.now() - t0, 'ms'); } catch (e2) {}
 });
 })(typeof window !== 'undefined' ? window : this);

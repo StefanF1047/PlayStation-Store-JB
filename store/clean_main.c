@@ -1,4 +1,4 @@
-/* WK Autoloader Store Clean: reset the Store AppCache for a clean-console test.
+/* WK Store Clean: reset the Store AppCache for a clean-console test.
  *
  * For the foreground user only:
  *   1. copy ApplicationCache.db* to a NEW timestamped folder

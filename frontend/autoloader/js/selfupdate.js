@@ -4,9 +4,9 @@ var W = g.WKAL = g.WKAL || {};
 W.selfupd = W.selfupd || {};
 
   var SELFUPD_DISMISS_KEY = 'wkal-selfupd-dismiss';
-  var SELFUPD_GH_LATEST = 'https://api.github.com/repos/X-F1REBALL-X/wk-autoloader/releases/latest';
-  var SELFUPD_RELEASES_URL = 'https://github.com/X-F1REBALL-X/wk-autoloader/releases/latest';
-  var SELFUPD_ASSET = 'wk-autoloader.elf';
+  var SELFUPD_GH_LATEST = 'https://api.github.com/repos/X-F1REBALL-X/wk-store/releases/latest';
+  var SELFUPD_RELEASES_URL = 'https://github.com/X-F1REBALL-X/wk-store/releases/latest';
+  var SELFUPD_ASSET = 'WK_Store_V1.3.0.elf';
   /* state in W.state */
   
   
@@ -138,12 +138,12 @@ W.selfupd = W.selfupd || {};
       assets = j.assets || [];
       for (i = 0; i < assets.length; i++) {
         a = assets[i] || {};
-        if (String(a.name || '').toLowerCase() === SELFUPD_ASSET) { url = a.browser_download_url || ''; asha = String(a.digest || '').replace(/^sha256:/i, ''); asize = a.size || 0; break; }
+        if (String(a.name || '').toLowerCase() === String(SELFUPD_ASSET).toLowerCase()) { url = a.browser_download_url || ''; asha = String(a.digest || '').replace(/^sha256:/i, ''); asize = a.size || 0; break; }
       }
       if (!url) {
         for (i = 0; i < assets.length; i++) {
           a = assets[i] || {};
-          if (/^wk-autoloader.*\.elf$/i.test(String(a.name || ''))) { url = a.browser_download_url || ''; asha = String(a.digest || '').replace(/^sha256:/i, ''); asize = a.size || 0; break; }
+          if (/^wk-store.*\.elf$/i.test(String(a.name || ''))) { url = a.browser_download_url || ''; asha = String(a.digest || '').replace(/^sha256:/i, ''); asize = a.size || 0; break; }
         }
       }
       try { dismissed = localStorage.getItem(SELFUPD_DISMISS_KEY) || ''; } catch (e2) { }
@@ -172,7 +172,7 @@ W.selfupd = W.selfupd || {};
   /* Reliable path: Elf Launcher :1000 downloads the release asset natively
      (follows GitHub redirects, checks sha256) then pushes raw bytes to
      elfldr via /run. Real errors are reported; elfldr ?uri= is fallback only. */
-  var SELFUPD_DISK_NAME = 'wk-autoloader.elf';
+  var SELFUPD_DISK_NAME = 'WK_Store_V1.3.0.elf';
   function waitForElfLauncher(maxTries, cb) {
     var n = 0;
     function tick() {

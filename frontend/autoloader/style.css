@@ -1,4 +1,4 @@
-/* WK Autoloader - layout B (Elf Launcher pearl theme + 5 themes) */
+/* WK Store - layout B (Elf Launcher pearl theme + 5 themes) */
 html{font-synthesis:none}
 :root{--bg:#f7f4ee;--void:#efe9dc;--deck:#fffdf9;--card:#fffdf8;--card2:#f4efe5;--edge:#e5ddcd;--edge2:#cfc2ab;
 --ink:#231c14;--ink2:#463b2d;--mute:#665a49;--pri:#ea580c;--pri2:#f59e0b;--rose:#f59e0b;--mint:#047857;--amber:#b45309;--bad:#b91c1c;--onp:#fff;
@@ -114,7 +114,7 @@ body.fail #failMsg{display:block}
 .next[hidden]{display:none!important}
 .next img{width:56px;height:56px;border-radius:12px;object-fit:cover}
 .next .n{margin:0;font-weight:800}.next .d{margin:.15rem 0 0;color:var(--mute);font-size:.9rem}
-#logWrapper{margin-top:1rem;max-height:12rem;overflow:auto;text-align:start;background:var(--card2);border:1px solid var(--edge);border-radius:12px;padding:.6rem .75rem;font-size:.8rem}
+#logWrapper{margin-top:1rem;max-height:9rem;overflow:auto;text-align:start;background:var(--card2);border:1px solid var(--edge);border-radius:12px;padding:.6rem .75rem;font-size:.8rem}
 #logWrapper[hidden]{display:none!important}
 #logContainer .line{margin:.15rem 0;color:var(--ink2)}
 #logContainer .line.error{color:var(--bad)}
@@ -353,7 +353,10 @@ body{background:#fbf6ee}
 .vh{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
 #autoStartRow{margin-bottom:.55rem}
 #loader #titleMsg .wk,#homeCard .home-title .wk{color:#111!important;-webkit-text-fill-color:#111!important;background:none!important}
-.hrow .hdate{margin-left:.6rem;font-weight:600;color:var(--mute);font-variant-numeric:tabular-nums}
+.hrow .hmeta{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:.08rem;min-width:0}
+.hrow .hdate{margin-left:0;display:block;font-weight:600;color:var(--mute);font-variant-numeric:tabular-nums}
+.hrow .hchain{font-weight:700}
+.hrow .hdur{font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* Console info card under the home card */
 #homeInfo{width:min(720px,100%);margin:.9rem auto 0;box-sizing:border-box;background:#fffcf6;border:2px solid #f6b98a;border-radius:22px;box-shadow:0 6px 20px rgba(242,107,29,.06);padding:1rem 1.4rem 1.1rem;text-align:center}
@@ -484,3 +487,39 @@ body.done #loader #progressBar{width:100%!important;background:linear-gradient(9
 #cacheFill .cf-track{height:.55rem;border-radius:999px;background:#2a2d3a;overflow:hidden}
 #cacheFill .cf-bar{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#ff7a12,#ffc25a);-webkit-transition:width .15s linear;transition:width .15s linear}
 #cacheFill .cf-sub{margin:.75rem 0 0;font-size:.85rem;color:#94a3b8}
+
+#toast.ok #toastTitle{color:#f26b1d}
+
+
+/* Power tiles under Console (active only after JB) */
+.power-tiles{
+  display:-webkit-box;display:-webkit-flex;display:flex;
+  -webkit-flex-wrap:wrap;flex-wrap:wrap;
+  -webkit-justify-content:center;justify-content:center;
+  gap:.55rem;margin-top:.85rem;
+}
+.power-tile{
+  -webkit-box-flex:1;-webkit-flex:1 1 6.5rem;flex:1 1 6.5rem;
+  max-width:9.5rem;min-height:4.4rem;padding:.55rem .5rem .6rem;
+  border:1.5px solid #f6b98a;border-radius:16px;background:#fff4ea;
+  color:#111;font:inherit;cursor:pointer;
+  display:-webkit-box;display:-webkit-flex;display:flex;
+  -webkit-flex-direction:column;flex-direction:column;
+  -webkit-align-items:center;align-items:center;
+  -webkit-justify-content:center;justify-content:center;
+  gap:.2rem;box-shadow:0 .35rem .9rem rgba(60,45,25,.08);
+}
+.power-tile .pwr-ico{display:block;line-height:0;color:#f26b1d}
+.power-tile .pwr-ico svg{display:block;width:1.55rem;height:1.55rem}
+.power-tile .pwr-t{font-size:.92rem;font-weight:800;color:#111}
+.power-tile:disabled{
+  opacity:.42;cursor:default;filter:grayscale(.35);
+  box-shadow:none;
+}
+.power-tile:not(:disabled):active{
+  -webkit-transform:scale(.97);transform:scale(.97);
+  border-color:#f26b1d;background:#ffe7d4;
+}
+html.dark .power-tile{background:rgba(242,107,29,.12);border-color:rgba(242,107,29,.35);color:var(--ink)}
+html.dark .power-tile .pwr-t{color:var(--ink)}
+#loader .power-tiles{margin-top:.75rem}

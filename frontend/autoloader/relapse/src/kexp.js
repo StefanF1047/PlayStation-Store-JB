@@ -1,4 +1,5 @@
 import { int64 } from "./utils/int64.js";
+import { elfldrBytes, ELFLDR_NAME } from "./elfldr_embedded.js";
 
 const O_NONBLOCK = 0x4;
 const PROT_RW = 0x3, PROT_RWX = 0x7;
@@ -92,6 +93,13 @@ function resolveSymbols(p) {
 }
 
 async function fetchBinary(name, payloadDir) {
+  /* Embedded elfldr: no separate HTTP/AppCache fetch in the chain. */
+  if (name === DEFAULT_ELFLDR || name === ELFLDR_NAME) {
+    const bytes = elfldrBytes();
+    if (!bytes || bytes.length < 0x1000)
+      throw new Error("kexp: embedded elfldr is missing");
+    return bytes;
+  }
   payloadDir = payloadDir || "payloads/";
   const response = await fetch(payloadDir + name);
   if (!response.ok) throw new Error("kexp: " + name + " returned HTTP " + response.status);
@@ -137,7 +145,7 @@ async function connectToElfldr(p, chain) {
   p.write4(address, 0x3d230210); // AF_INET, port 9021
   p.write4(address.add32(4), 0x0100007f); // 127.0.0.1
 
-  for (let attempt = 0; attempt < 40; attempt++) {
+  for (let attempt = 0; attempt < 200; attempt++) {
     const socket = await chain.syscall(SYS_SOCKET, 2, 1, 0);
     const fd = socket.low | 0;
     if (fd >= 0) {
@@ -145,12 +153,18 @@ async function connectToElfldr(p, chain) {
       if ((connected.low >>> 0) === 0) return fd;
       await chain.syscall(SYS_CLOSE, fd);
     }
-    /* 50ms: elfldr is usually up quickly after the listening log; 250ms
-       wasted up to ~200ms per missed connect. */
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    /* 25ms: match y2jb readiness poll. */
+    await new Promise((resolve) => setTimeout(resolve, 25));
   }
 
   throw new Error("elfldr is not listening on port 9021");
+}
+
+// Kexp thread completion does not guarantee elfldr has bound :9021.
+// Connect without sending bytes: never HTTP-probe a raw payload listener.
+export async function waitForElfldr(p, chain) {
+  const fd = await connectToElfldr(p, chain);
+  await chain.syscall(SYS_CLOSE, fd);
 }
 
 async function sendElf(name, payload, p, chain) {
@@ -183,9 +197,9 @@ export async function sendAutoloadElf(name, payloadDir, p, chain, log) {
 }
 
 export async function loadOptionalPayloads(p, chain, log) {
-  /* WK Autoloader must not autoload unrelated payloads. Companion page
+  /* WK Store must not autoload unrelated payloads. Companion page
      install happens only via wkal-companions.elf / sendAutoloadElf. */
-  log("optional payloads disabled - WK installs Elf Launcher and Payload Manager pages only");
+  log("optional payloads disabled - WK installs Elf Launcher page only");
 }
 
 function patchShellcode(blob, symbols) {

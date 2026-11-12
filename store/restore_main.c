@@ -613,7 +613,7 @@ static void restore_log(const char *fmt, ...)
     fflush(stdout);
 }
 
-/* Remove WK Autoloader leftovers; no backups kept. */
+/* Remove WK Store leftovers; no backups kept. */
 static int wipe_tree(const char *path)
 {
     char sub[512];
@@ -655,26 +655,47 @@ static void wipe_one(const char *path, int *total)
     restore_log("[WKRESTORE] wiped %s (%d)\n", path, n);
 }
 
+/* Recursively wipe ApplicationCache db/sidecars and flat-file dirs under
+ * one directory (depth-capped). Catches WebKit layouts the fixed-path list
+ * used to miss. */
+static void wipe_appcache_under(const char *dir, int depth, int *total)
+{
+    DIR *d;
+    struct dirent *e;
+    char path[512];
+    struct stat st;
+
+    if (depth > 6)
+        return;
+    d = opendir(dir);
+    if (!d)
+        return;
+    while ((e = readdir(d))) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
+            continue;
+        snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
+        if (lstat(path, &st) != 0)
+            continue;
+        if (S_ISDIR(st.st_mode)) {
+            if (!strcmp(e->d_name, "ApplicationCache") ||
+                !strcmp(e->d_name, "OfflineWebApplicationCache") ||
+                !strcmp(e->d_name, "appcache")) {
+                wipe_one(path, total);
+            } else {
+                wipe_appcache_under(path, depth + 1, total);
+            }
+        } else if (!strncmp(e->d_name, "ApplicationCache.db", 19)) {
+            wipe_one(path, total);
+        }
+    }
+    closedir(d);
+}
+
 static void wipe_appcache_files_under_home(int *total)
 {
     DIR *home;
     struct dirent *e;
     char path[512];
-    static const char *const names[] = {
-        "webkit/shell/appcache/ApplicationCache.db",
-        "webkit/shell/appcache/ApplicationCache.db-wal",
-        "webkit/shell/appcache/ApplicationCache.db-shm",
-        "webkit/shell/appcache/ApplicationCache.db-journal",
-        "webkit/shell/appcache/ApplicationCache",
-        "webkit/shell/appcache/OfflineWebApplicationCache",
-        "webkit/shell/ApplicationCache.db",
-        "webkit/shell/ApplicationCache.db-wal",
-        "webkit/shell/ApplicationCache.db-shm",
-        "webkit/shell/ApplicationCache",
-        "webkit/shell/OfflineWebApplicationCache",
-        NULL
-    };
-    int i;
 
     home = opendir("/user/home");
     if (!home)
@@ -682,20 +703,20 @@ static void wipe_appcache_files_under_home(int *total)
     while ((e = readdir(home))) {
         if (e->d_name[0] == '.')
             continue;
-        for (i = 0; names[i]; i++) {
-            snprintf(path, sizeof(path), "/user/home/%s/%s", e->d_name, names[i]);
-            wipe_one(path, total);
-        }
+        snprintf(path, sizeof(path), "/user/home/%s/webkit/shell", e->d_name);
+        wipe_appcache_under(path, 0, total);
     }
     closedir(home);
 }
 
+/* Restore puts back the PS Store tile and removes WK leftovers
+ * (SLKT/PLDM apps, tile assets, AppCache, /data/wkal, backups).
+ * Elf Launcher (ELFL00001, /data/elf-launcher) is left installed. */
 static void wipe_wk_leftovers(void)
 {
     int total = 0;
 
     wipe_one("/user/app/SLKT00001", &total);
-    wipe_one("/user/app/ELFL00001", &total);
     wipe_one("/user/app/PLDM00001", &total);
     wipe_one(TILE_ASSET_FILE, &total);
     wipe_one(TILE_PIC0_FILE, &total);
@@ -709,6 +730,68 @@ static void wipe_wk_leftovers(void)
     restore_log("[WKRESTORE] leftover wipe total=%d\n", total);
 }
 
+
+
+/* Embedded reboot.elf (same asset as Store install). After restore finishes,
+ * hand it to elfldr on :9021 so the console reboots for a clean browser. */
+#include "reboot_elf.h"
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+
+static int restore_send_all(int fd, const unsigned char *p, size_t n)
+{
+    while (n > 0) {
+        ssize_t w = send(fd, p, n, 0);
+        if (w < 0) {
+            if (errno == EINTR)
+                continue;
+            return -1;
+        }
+        if (w == 0)
+            return -1;
+        p += (size_t)w;
+        n -= (size_t)w;
+    }
+    return 0;
+}
+
+static int restore_send_reboot_elf(void)
+{
+    int fd;
+    struct sockaddr_in addr;
+    int attempt;
+    int rc;
+
+    sync();
+    for (attempt = 0; attempt < 8; attempt++) {
+        fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0)
+            return -1;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(9021);
+        addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0)
+            break;
+        close(fd);
+        fd = -1;
+        usleep(250000);
+    }
+    if (fd < 0) {
+        restore_log("[WKRESTORE] reboot connect :9021 failed\n");
+        return -1;
+    }
+
+    restore_log("[WKRESTORE] Sending embedded reboot.elf (%u bytes) to :9021\n",
+                (unsigned)g_reboot_elf_len);
+    rc = restore_send_all(fd, g_reboot_elf, g_reboot_elf_len);
+    shutdown(fd, SHUT_WR);
+    usleep(500000);
+    close(fd);
+    return rc;
+}
 
 int main(void)
 {
@@ -766,6 +849,7 @@ int main(void)
     restore_log("[WKRESTORE] appcache_clean_store_all_users -> %d\n", ac);
     wipe_wk_leftovers();
 
-    toast("Store restored (%d rows). Reboot now.", app_rows + info_rows);
+    toast("Store restored (%d rows). Reboot manually.", app_rows + info_rows);
+    /* Auto-reboot disabled: user reboots after Restore. */
     return 0;
 }

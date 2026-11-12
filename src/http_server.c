@@ -17,6 +17,7 @@
 #include "appcache_clean.h"
 #endif
 #include "http_server.h"
+#include "ps5_launcher.h"
 #include "file_registry.h"
 #include "inflate.h"
 #include "app_installer.h"
@@ -170,6 +171,11 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
         int err = wkali_install_app();
 #endif
         if (err == 0) {
+#ifdef IGNIKEY_STORE
+            /* Refresh installed EL bootstrap files only; never run payloads. */
+            (void)wkali_seed_launcher_files();
+            (void)ps5_seed_power_elfs();
+#endif
             /* Keep :1022 up so installer-page can navigate to /app/index.html
              * and the home-icon deeplink works while this ELF is resident.
              * AppCache still enables offline relaunch later; /exit stops us. */
@@ -190,6 +196,11 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
         }
     } else if (strcmp(url, ROUTE_EXIT) == 0) {
         wkali_log("[WKALI] Exit requested by client. Stopping server...\n");
+#ifdef IGNIKEY_STORE
+        /* Installer finished: soft-reboot so the next Store-tile open is
+         * after a clean browser start (no stale in-memory AppCache). */
+        ps5_reboot_console();
+#endif
         resp = MHD_create_response_from_buffer(2, (void *)"OK",
                                                MHD_RESPMEM_PERSISTENT);
         MHD_add_response_header(resp, "Content-Type", "text/plain");
@@ -224,6 +235,39 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
         wk_get_model(model, sizeof(model));
         wk_get_lan_ip(ip, sizeof(ip));
         snprintf(body, sizeof(body), "{\"model\":\"%s\",\"ip\":\"%s\"}", model, ip);
+        resp = MHD_create_response_from_buffer(strlen(body), body, MHD_RESPMEM_MUST_COPY);
+        MHD_add_response_header(resp, "Content-Type", "application/json");
+        MHD_add_response_header(resp, "Cache-Control", "no-store");
+    } else if (strncmp(url, "/api/power", 10) == 0) {
+        const char *cmd = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "cmd");
+        const char *notify_only = MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "notify");
+        char body[64];
+        int rc = -1;
+        if (!cmd || !cmd[0]) {
+            const char *q = strchr(url, '?');
+            if (q && strncmp(q + 1, "cmd=", 4) == 0) cmd = q + 5;
+        }
+        if (cmd && cmd[0]) {
+            char tmp[32];
+            size_t i = 0;
+            while (cmd[i] && cmd[i] != '&' && i + 1 < sizeof(tmp)) {
+                tmp[i] = cmd[i];
+                i++;
+            }
+            tmp[i] = 0;
+            if (notify_only && notify_only[0] == '1') {
+                if (!strcmp(tmp, "reboot")) wkali_notify("Rebooting.");
+                else if (!strcmp(tmp, "rest") || !strcmp(tmp, "suspend")) wkali_notify("Rest mode.");
+                else wkali_notify("Power off.");
+                rc = 0;
+            } else {
+                rc = ps5_power_action(tmp);
+            }
+        }
+        if (rc == 0)
+            snprintf(body, sizeof(body), "{\"ok\":true}");
+        else
+            snprintf(body, sizeof(body), "{\"ok\":false}");
         resp = MHD_create_response_from_buffer(strlen(body), body, MHD_RESPMEM_MUST_COPY);
         MHD_add_response_header(resp, "Content-Type", "application/json");
         MHD_add_response_header(resp, "Cache-Control", "no-store");

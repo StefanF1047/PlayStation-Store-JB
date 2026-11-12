@@ -28,8 +28,7 @@ W.state = {
   elapsedStart: 0,
   launcherHttpOpenStarted: false,
   elfHttpAlreadyUp: false,
-  elMirrorFirst: false,  /* boot sends console mirror EL, bundled only as fallback */
-  elRefreshRan: false,
+  elInstalledFirst: false,  /* bootstrap installed EL only; EL owns its payload configuration */
   launcherChoice: 'elf-launcher',
   exploitMode: null,
   EXPLOIT_URL: '',
@@ -49,7 +48,8 @@ W.state = {
   progressKernelQuiet: false,
   runStage: 'idle', /* idle|countdown|early|armed|done|fail */
   safeRetryLeft: 0,
-  historyPrefer: null
+  historyPrefer: null,
+  payloadLoadingShown: false
 };
 
 W.MAX_LOG_LINES = 80;
@@ -79,9 +79,9 @@ W.setLauncherChoice = function (choice) {
   return v;
 };
 
-W.BUNDLED_ELFLAUNCHER_SHA = 'c540e4bc3f526d990710074e151cbb4b85b3b5365f3ce77798aab34e3c1e25af';
-W.BUNDLED_ELFLAUNCHER_VER = 'tip';
-W.CONSOLE_MIRROR_URI = 'file:///data/elf-launcher/mirror/elf-launcher.elf';
+W.BUNDLED_ELFLAUNCHER_SHA = '5c4a9c3146cf7ac14ce0dab35358eb5ab9cd17c647735d9fcd0932913ac2a9d2';
+W.BUNDLED_ELFLAUNCHER_VER = '2.1.6';
+W.CONSOLE_LAUNCHER_URI = 'file:///data/elf-launcher/elf-launcher.elf';
 W.STALL_MS = 18000;
 
 W.UMTX2_FIRMWARES = ["1.00","1.01","1.02","1.05","1.10","1.11","1.12","1.13","1.14","2.00","2.20","2.25","2.26","2.30","2.50","2.70","3.00","3.10","3.20","3.21","4.00","4.02","4.03","4.50","4.51","5.00","5.02","5.10","5.50"];
@@ -343,6 +343,28 @@ W.uiSetPayload = function (id, tag, on) {
   if (tg) tg.textContent = t;
 };
 
+/* Cover the silent gap after elfldr READY while the tip/payload is sent
+   and while waiting for Elf Launcher :1000. Call at the READY moment. */
+W.beginPayloadLoading = function (reason) {
+  if (W.state.payloadLoadingShown) return;
+  W.state.payloadLoadingShown = true;
+  try { W.uiSetPayload('plElfldr', 'READY', true); } catch (e1) {}
+  try { W.uiSetPayload('plLauncher', 'LOADING', true); } catch (e2) {}
+  var msg = (W.t && W.t('sendingPayload')) || 'Sending payload…';
+  try {
+    if (W.els && W.els.progressLabel) {
+      W.els.progressLabel.hidden = false;
+      W.els.progressLabel.textContent = msg;
+    }
+  } catch (e3) {}
+  try {
+    if (W.ui && W.ui.toast) W.ui.toast(msg, (W.t && W.t('loadingPayloads')) || 'Loading payloads…', 'ok');
+  } catch (e4) {}
+  try {
+    W.uiLog('[payload] ' + (reason || 'elfldr ready') + ' - ' + msg, 'info');
+  } catch (e5) {}
+};
+
 W.finishProgressSuccess = function (message) {
   try { W.markTiming('jb_done'); W.logTimingSummary(); } catch (eT) {}
   W.state.progressDone = true;
@@ -460,37 +482,74 @@ W.detectCfiPreJb = function () {
   return W.getCachedCfi(); /* fallback: saved from a prior JB */
 };
 
-/* After JB / when :1000 is up - persist model for next splash. */
+/* After JB / when :1000 is up - persist model + LAN IP for next splash.
+   Elf Launcher :1000/sysinfo (model) and :1000/ip. Store :1022 is fallback in UI. */
 W.persistCfiFromLauncher = function (cb) {
   function done(p) { if (typeof cb === 'function') try { cb(p || null); } catch (e) {} }
-  function take(raw, src) {
+  function takeModel(raw, src) {
     var p = W.setCachedCfi(raw);
     if (p) {
-      W.uiLog('[model] saved ' + p.code + ' (' + p.label + ') from ' + src + ' for next run', 'success');
-      if (W.ui && W.ui.syncChainUi) W.ui.syncChainUi();
-      done(p);
+      if (W.state) W.state.hwModel = p.code;
+      W.uiLog('[model] saved ' + p.code + ' (' + p.label + ') from ' + src, 'success');
+      if (W.ui && W.ui.renderHomeInfo) W.ui.renderHomeInfo();
+      else if (W.ui && W.ui.syncChainUi) W.ui.syncChainUi();
       return true;
+    }
+    if (raw) {
+      var s = String(raw).replace(/[^\x20-\x7e]/g, '').trim();
+      if (s) {
+        if (W.state) W.state.hwModel = s;
+        W.lsSet(W.LS_CFI_KEY, s);
+        if (W.ui && W.ui.renderHomeInfo) W.ui.renderHomeInfo();
+        return true;
+      }
     }
     return false;
   }
-  /* already have one */
+  function takeIp(ip, src) {
+    if (!ip || !/^\d+\.\d+\.\d+\.\d+$/.test(ip) || ip.indexOf('127.') === 0) return false;
+    if (W.state) W.state.lanIp = ip;
+    W.lsSet(W.LS_IP_KEY, ip);
+    W.uiLog('[ip] saved ' + ip + ' from ' + src, 'success');
+    if (W.ui && W.ui.renderHomeInfo) W.ui.renderHomeInfo();
+    return true;
+  }
   var cached = W.getCachedCfi();
+  var pending = 2;
+  var gotModel = false;
+  function fin() {
+    pending -= 1;
+    if (pending > 0) return;
+    done(gotModel ? W.getCachedCfi() : cached);
+  }
   try {
     fetch('http://127.0.0.1:1000/sysinfo?t=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (j) {
-        if (!j) { done(cached); return; }
-        if (take(j.model || j.cfi || j.consoleModel || j.hwModel || '', 'sysinfo')) return;
-        if (j.info && take(j.info.model || j.info.cfi || '', 'sysinfo.info')) return;
-        /* scan stringified json for CFI-xxxx */
-        var blob = '';
-        try { blob = JSON.stringify(j); } catch (e2) {}
-        var m = blob.match(/CFI-?\d{4}[A-Z0-9]*/i);
-        if (m && take(m[0], 'sysinfo-scan')) return;
-        done(cached);
+        if (j) {
+          if (takeModel(j.model || j.cfi || j.consoleModel || j.hwModel || '', 'sysinfo')) gotModel = true;
+          else if (j.info && takeModel(j.info.model || j.info.cfi || '', 'sysinfo.info')) gotModel = true;
+          else {
+            var blob = '';
+            try { blob = JSON.stringify(j); } catch (e2) {}
+            var m = blob.match(/CFI-?\d{4}[A-Z0-9]*/i);
+            if (m && takeModel(m[0], 'sysinfo-scan')) gotModel = true;
+          }
+          if (j.ip) takeIp(j.ip, 'sysinfo');
+        }
+        fin();
       })
-      .catch(function () { done(cached); });
-  } catch (e3) { done(cached); }
+      .catch(function () { fin(); });
+  } catch (e3) { fin(); }
+  try {
+    fetch('http://127.0.0.1:1000/ip?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j) takeIp(j.ip || j.address || '', 'ip');
+        fin();
+      })
+      .catch(function () { fin(); });
+  } catch (e4) { fin(); }
 };
 
 W.consoleLabel = function () {

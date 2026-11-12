@@ -7,7 +7,7 @@ from pathlib import Path
 SETTLE_MS = 150
 SETTLE = (
     "    // Let elfldr settle before sending payload.elf "
-    "(avoids panic on Payload Manager).\n"
+    "(avoids panic if send too soon).\n"
     f"    await new Promise(function (resolve) {{ setTimeout(resolve, {SETTLE_MS}); }});\n"
 )
 
@@ -15,10 +15,10 @@ SETTLE = (
 def patch_file(path: Path) -> bool:
     t = path.read_text(encoding="utf-8")
     # Refresh an existing settle timeout to SETTLE_MS.
-    if "avoids panic on Payload Manager" in t:
+    if "avoids panic if send too soon" in t:
         new, n = re.subn(
             r"(// Let elfldr settle before sending payload\.elf "
-            r"\(avoids panic on Payload Manager\)\.\n"
+            r"\(avoids panic if send too soon\)\.\n"
             r"    await new Promise\(function \(resolve\) \{ setTimeout\(resolve, )\d+(\); \}\);)",
             rf"\g<1>{SETTLE_MS}\2",
             t,

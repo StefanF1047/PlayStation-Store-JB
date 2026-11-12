@@ -1,19 +1,20 @@
 <img src="docs/img/banner.png" alt="WK Store">
 
-Turns the PS5 Store tile into WK Autoloader: open the tile, start the jailbreak, and Elf Launcher opens when it finishes.
+Turns the PS5 Store tile into WK Store: open the tile, start the jailbreak, and Elf Launcher opens when it finishes.
 
 ## Quick start
 
-1. Send [`WK_Store_V1.2.2.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.2.elf) to elfldr on port `9021`.
+1. Send [`WK_Store_V1.2.3.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.3.elf) to elfldr on port `9021`.
 2. Wait for the install to finish, then reboot.
 3. Open the **Store** tile and press **Start Jailbreak**.
 
 ## Features
 
-- Replaces the Store tile with WK Autoloader.
-- Relapse jailbreak from the tile, then disk tip opens Elf Launcher.
+- Replaces the Store tile with WK Store.
+- Relapse jailbreak from the tile, then Elf Launcher opens by itself.
 - Works offline after install.
-- Separate Restore ELF puts the original PlayStation Store tile back.
+- Bundled Elf Launcher 2.1.6.
+- A separate Restore ELF puts the original PlayStation Store tile back.
 
 ## Gallery
 
@@ -26,19 +27,15 @@ Turns the PS5 Store tile into WK Autoloader: open the tile, start the jailbreak,
 
 ## Installation
 
-If an older WK Store is already installed, send Restore first, reboot, then install 1.2.2.
+If an older WK Store is already installed, send Restore first, reboot, then install 1.2.3.
 
-1. Send [`WK_Store_V1.2.2.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.2.elf) to elfldr on port `9021`.
+1. Send [`WK_Store_V1.2.3.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.3.elf) to elfldr on port `9021`.
 2. Wait until install finishes, then reboot.
 3. Open the **Store** tile and press **Start Jailbreak**.
 
 ## Restore the PlayStation Store tile
 
-Send [`WK_Store_Restore_V1.2.2.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.2.elf) to elfldr on port `9021`, then reboot.
-
-## Known issues
-
-The first jailbreak right after install can occasionally freeze while WebKit is still writing the offline AppCache. Restart and run again; later runs are stable.
+Send [`WK_Store_Restore_V1.2.3.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.3.elf) to elfldr on port `9021`, then reboot.
 
 ## Building from source
 
@@ -49,7 +46,7 @@ make store SDK=/path/to/ps5-payload-sdk
 make restore SDK=/path/to/ps5-payload-sdk
 ```
 
-Outputs `WK_Autoloader_Store_V1.2.2.elf` and `WK_Autoloader_Store_Restore_V1.2.2.elf`.
+Outputs `WK_Store_V1.2.3.elf` and `WK_Store_Restore_V1.2.3.elf`.
 
 ## License
 

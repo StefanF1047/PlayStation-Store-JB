@@ -147,18 +147,23 @@ W.startStallWatch = function () {
 };
 
 W.recordRun = function (result) {
-  var dur = W.state.elapsedStart ? Date.now() - W.state.elapsedStart : 0;
-  var marks = (W.state.timing && W.state.timing.marks) ? W.state.timing.marks : {};
-  var totalMs = W.state.timing ? (Date.now() - W.state.timing.t0) : dur;
+  var ms = 0;
+  if (W.state && W.state.elapsedFinalMs) ms = W.state.elapsedFinalMs;
+  else if (W.state && W.state.elapsedStart) ms = Date.now() - W.state.elapsedStart;
+  var chain = (W.state && W.state.exploitMode) || (W.getChainPref && W.getChainPref()) || '';
+  var fw = '';
+  try {
+    var d = W.detectFirmware();
+    if (d && d.str) fw = d.str;
+  } catch (e) {}
   W.saveHistoryEntry({
-    chain: W.state.exploitMode || '-',
+    ts: Date.now(),
+    chain: chain,
+    fw: fw,
+    stage: result === 'ok' ? 'done' : result,
     result: result,
-    duration: W.formatElapsed(dur),
-    ms: totalMs,
-    timing: marks,
-    stage: W.state.runStage || '-',
-    fw: (W.detectFirmware() || {}).str || '-',
-    at: Date.now()
+    ms: ms,
+    duration: W.formatElapsed ? W.formatElapsed(ms) : (ms + 'ms')
   });
 };
 })(typeof window !== 'undefined' ? window : this);

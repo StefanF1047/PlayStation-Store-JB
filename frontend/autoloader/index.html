@@ -7,7 +7,7 @@
   <script>(function(){var v="";try{v=localStorage.getItem("wkal-theme")||""}catch(e){}if(!/^(gray|white|gold|black)$/.test(v))v="";if(v){document.documentElement.setAttribute("data-theme",v);if(v==="gold"||v==="black")document.documentElement.className+=" dark"}}())</script>
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/png" href="favicon.png" />
-  <title>WK Autoloader</title>
+  <title>WK Store</title>
 </head>
 <body>
   <div id="cacheFill" hidden>
@@ -15,29 +15,29 @@
     <p class="cf-title">Preparing cache</p>
     <p class="cf-pct" id="cacheFillPct">0%</p>
     <div class="cf-track"><div class="cf-bar" id="cacheFillBar"></div></div>
-    <p class="cf-sub" id="cacheFillSub">First open only — keep this page open</p>
+    <p class="cf-sub" id="cacheFillSub">Cache must finish before jailbreak  -  keep this page open</p>
   </div>
 </div>
 
   <div id="toast" role="status" aria-live="polite"><s>!</s><span><b id="toastTitle"></b><small id="toastBody"></small></span><button type="button" id="toastx" aria-label="Dismiss">×</button></div>
-  <div id="selfupd" role="status"><p id="selfupdtxt"></p><div class="acts"><button type="button" id="selfupddl" data-i18n="update">Update</button><button type="button" id="selfupdx" data-i18n="selfUpdateLater">Later</button></div></div>
+  <div id="selfupd" role="status" hidden><p id="selfupdtxt"></p><div class="acts"><button type="button" id="selfupddl" data-i18n="update">Update</button><button type="button" id="selfupdx" data-i18n="selfUpdateLater">Later</button></div></div>
 
   <div class="wrap">
     <header class="bar" id="topbar">
       <div class="logo"><img src="logo.png" alt="" width="46" height="46" /></div>
       <div class="brand">
-        <h1>WK <b>Autoloader</b></h1>
-        <div class="meta"><span class="ver" id="appVer">v1.0.0</span></div>
+        <h1>WK <b>Store</b></h1>
+        <div class="meta"><span class="ver" id="appVer">v[[STORE_VERSION_PLACEHOLDER]]</span></div>
       </div>
       <div class="spacer"></div>
     </header>
 
-    <div class="ver-pill" id="storeVer">v1.2.2</div>
+    <div class="ver-pill" id="storeVer">v[[STORE_VERSION_PLACEHOLDER]]</div>
     <div id="splash" aria-hidden="false">
       <main class="main">
         <section class="hero card home-panel" id="homeCard">
           <div class="home-deco" aria-hidden="true">
-            <div class="home-title"><span class="wk">WK</span> Autoloader</div>
+            <div class="home-title"><span class="wk">WK</span> Store</div>
             <div class="home-div"><i></i><svg class="home-lock" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="11" rx="2.5" fill="#f26b1d"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="#f26b1d" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="15.3" r="1.6" fill="#fff"/><rect x="11.3" y="15.8" width="1.4" height="3" rx=".7" fill="#fff"/></svg><i></i></div>
           </div>
           <p class="label" data-i18n="startJailbreakTitle">Start jailbreak</p>
@@ -64,6 +64,20 @@
             <div class="hi-chip"><span class="k">IP</span><b id="hiIp">-</b></div>
             <div class="hi-chip"><span class="k">Auto-start</span><b id="hiAuto">-</b></div>
           </div>
+                    <div class="power-tiles" id="powerTiles" aria-label="Power">
+            <button type="button" class="power-tile" id="pwrOff" data-power="off" disabled>
+              <span class="pwr-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8"/><path d="M7.5 5.6a7.5 7.5 0 1 0 9 0"/></svg></span>
+              <span class="pwr-t">Power Off</span>
+            </button>
+            <button type="button" class="power-tile" id="pwrReboot" data-power="reboot" disabled>
+              <span class="pwr-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 1-2.2-5.5"/><polyline points="20 4 20 10 14 10"/></svg></span>
+              <span class="pwr-t">Reboot</span>
+            </button>
+            <button type="button" class="power-tile" id="pwrRest" data-power="rest" disabled>
+              <span class="pwr-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 15.5A8.5 8.5 0 1 1 11 4.2 6.8 6.8 0 0 0 20.5 15.5z"/></svg></span>
+              <span class="pwr-t">Rest Mode</span>
+            </button>
+          </div>
         </section>
       </main>
     </div>
@@ -71,7 +85,7 @@
     <main id="loader" hidden>
       <section class="hero card center postjb-card home-panel">
         <div class="home-deco" aria-hidden="true">
-          <div class="home-title" id="titleMsg"><span class="wk">WK</span> Autoloader</div>
+          <div class="home-title" id="titleMsg"><span class="wk">WK</span> Store</div>
           <div class="home-div"><i></i><svg class="home-lock" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="11" rx="2.5" fill="#f26b1d"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="#f26b1d" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="15.3" r="1.6" fill="#fff"/><rect x="11.3" y="15.8" width="1.4" height="3" rx=".7" fill="#fff"/></svg><i></i></div>
         </div>
         <p class="meta2" id="metaMsg" hidden>FW - · chain -</p>
@@ -80,12 +94,12 @@
         <div id="successMsg" class="pill-ok">Jailbroken</div>
         <div id="failMsg" data-i18n="jailbreakFail">Failed. Restart the console</div>
         <div id="progressContainer" hidden><div id="progressBar"></div></div>
-        <p id="elapsedMsg">Elapsed 0:00</p>
+        <p id="elapsedMsg"></p>
         <div id="stallMsg" class="stall" hidden></div>
         <div id="progressLabel" hidden data-i18n="jailbreakInProgress">In progress</div>
         <div id="nextTile" class="next" hidden>
           <img id="nextTileIco" src="elf-launcher-icon.png" width="48" height="48" alt="" />
-          <div><p class="n" id="nextTileTitle" data-i18n="openingElf">Opening Elf Launcher…</p><p class="d" id="nextTileUrl">http://127.0.0.1:1000</p></div>
+          <div><p class="n" id="nextTileTitle" data-i18n="openingElf">Opening Elf Launcher...</p><p class="d" id="nextTileUrl">http://127.0.0.1:1000</p></div>
         </div>
       </section>
       <section class="card postjb-info" id="loaderInfo" aria-label="Payloads and console">
@@ -101,14 +115,28 @@
           <div class="hi-chip"><span class="k">Chain</span><b id="ldChain">-</b></div>
           <div class="hi-chip"><span class="k">IP</span><b id="ldIp">-</b></div>
         </div>
+          <div class="power-tiles" id="powerTilesPost" aria-label="Power">
+            <button type="button" class="power-tile" data-power="off" disabled>
+              <span class="pwr-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v8"/><path d="M7.5 5.6a7.5 7.5 0 1 0 9 0"/></svg></span>
+              <span class="pwr-t">Power Off</span>
+            </button>
+            <button type="button" class="power-tile" data-power="reboot" disabled>
+              <span class="pwr-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 1-2.2-5.5"/><polyline points="20 4 20 10 14 10"/></svg></span>
+              <span class="pwr-t">Reboot</span>
+            </button>
+            <button type="button" class="power-tile" data-power="rest" disabled>
+              <span class="pwr-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 15.5A8.5 8.5 0 1 1 11 4.2 6.8 6.8 0 0 0 20.5 15.5z"/></svg></span>
+              <span class="pwr-t">Rest Mode</span>
+            </button>
+          </div>
       </section>
-      <div id="logWrapper" hidden><div id="logContainer"></div></div>
+      <!-- ops log removed -->
       <div id="p2jbStats" hidden>
-        <div class="stats-head"><span class="stats-title">P2JB</span><span class="stats-chip" id="p2jbStepChip">STEP –/7</span><span class="stats-clock" id="p2jbClocks">total --:--:--</span></div>
-        <div class="stats-status" id="p2jbStatus">…</div>
+        <div class="stats-head"><span class="stats-title">P2JB</span><span class="stats-chip" id="p2jbStepChip">STEP -/7</span><span class="stats-clock" id="p2jbClocks">total --:--:--</span></div>
+        <div class="stats-status" id="p2jbStatus">...</div>
         <div class="stats-infoline"><div class="stats-detail" id="p2jbDetail" hidden></div><div id="p2jbGroups" hidden></div></div>
-        <div class="stats-bar-row"><div class="stats-bar-label"><span id="p2jbPhaseName">PHASE</span><span id="p2jbPhasePct">–</span></div><div class="stats-track"><div class="stats-fill" id="p2jbPhaseFill"></div></div><div class="stats-meta" id="p2jbPhaseMeta">ETA --:--:--</div></div>
-        <div class="stats-bar-row overall"><div class="stats-bar-label"><span>OVERALL</span><span id="p2jbOverallPct">–</span></div><div class="stats-track big"><div class="stats-fill" id="p2jbOverallFill"></div></div><div class="stats-meta" id="p2jbOverallMeta">– left</div></div>
+        <div class="stats-bar-row"><div class="stats-bar-label"><span id="p2jbPhaseName">PHASE</span><span id="p2jbPhasePct">-</span></div><div class="stats-track"><div class="stats-fill" id="p2jbPhaseFill"></div></div><div class="stats-meta" id="p2jbPhaseMeta">ETA --:--:--</div></div>
+        <div class="stats-bar-row overall"><div class="stats-bar-label"><span>OVERALL</span><span id="p2jbOverallPct">-</span></div><div class="stats-track big"><div class="stats-fill" id="p2jbOverallFill"></div></div><div class="stats-meta" id="p2jbOverallMeta">- left</div></div>
       </div>
     </main>
 
@@ -117,7 +145,7 @@
 
           <p class="label slim" data-i18n="chainTitle">Chain</p>
           <div class="chips" id="chainRow" role="group" aria-label="Exploit chain">
-            <button type="button" class="opt on" id="chainRelapse" data-chain="relapse"><span class="t">Relapse</span><span class="d">FW 7.00–13.60</span></button>
+            <button type="button" class="opt on" id="chainRelapse" data-chain="relapse"><span class="t">Relapse</span><span class="d">FW 7.00-13.60</span></button>
           </div>
           <p class="hint" id="chainHint"></p>
 
@@ -127,11 +155,18 @@
           </div>
           <p class="hint" data-i18n="startDelay">Delay</p>
           <div class="chips" id="startDelay" role="group" aria-label="Auto-start delay">
-            <button type="button" class="opt" data-delay="0"><span class="t">0</span></button>
+            <button type="button" class="opt on" data-delay="0"><span class="t">0</span></button>
             <button type="button" class="opt" data-delay="1"><span class="t">1s</span></button>
             <button type="button" class="opt" data-delay="2"><span class="t">2s</span></button>
-            <button type="button" class="opt on" data-delay="3"><span class="t">3s</span></button>
+            <button type="button" class="opt" data-delay="3"><span class="t">3s</span></button>
           </div>
+
+          <div class="chips" id="rejbRow">
+            <label class="opt" id="rejbTile" for="rejbConfirm"><input type="checkbox" id="rejbConfirm" class="vh" /><span class="t" data-i18n="rejbConfirm">Confirm re-JB</span><span class="d" id="rejbState">Off</span></label>
+          </div>
+          <p class="hint" data-i18n="rejbConfirmHint">If already jailbroken, ask before running again</p>
+
+
 
 
           <p class="label slim" data-i18n="historyTitle">Recent</p>
@@ -149,7 +184,6 @@
   <script src="js/ui.js"></script>
   <script src="js/launcher.js"></script>
   <script src="js/mirrors.js"></script>
-  <script src="js/selfupdate.js"></script>
-  <script src="js/main.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-# WebKit Autoloader Installer - Native PS5 ELF Makefile
+# WK Store - Native PS5 ELF Makefile
 # Release tree marker: v1.0.0
 
 # Tools
@@ -126,7 +126,7 @@ host: $(WKAL_HOST)
 dev: payload-deps
 	$(PYTHON) tools/dev_server.py
 
-# Post-JB companion installer: Elf Launcher page only (no Payload Manager).
+# Post-JB companion installer: Elf Launcher homescreen page only.
 COMPANIONS_ELF := frontend/autoloader/payloads/wkal-companions.elf
 COMPANIONS_SRCS := src/companions_main.c src/app_installer.c src/notification.c src/log.c
 
@@ -136,7 +136,7 @@ companions: $(COMPANIONS_ELF)
 # Companions only need install/notify libs - not libmicrohttpd (installer HTTP).
 COMPANIONS_LIBS := -L$(TARGET)/lib -lpthread 	-lSceNetCtl -lSceUserService -lSceSystemService -lSceAppInstUtil
 
-$(COMPANIONS_ELF): $(COMPANIONS_SRCS) include/app_installer.h $(ICON0) assets/companions/elf-launcher/param.json assets/companions/elf-launcher/icon0.png
+$(COMPANIONS_ELF): $(COMPANIONS_SRCS) include/app_installer.h $(ICON0) assets/companions/elf-launcher/param.json assets/companions/elf-launcher/icon0.png | version
 	@echo "Building $(COMPANIONS_ELF)..."
 	@mkdir -p $(dir $(COMPANIONS_ELF))
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $(COMPANIONS_ELF) $(COMPANIONS_SRCS) $(COMPANIONS_LIBS)
@@ -148,7 +148,7 @@ clean:
 	rm -rf $(FRONTEND_STAGE)
 	rm -f $(ELF) $(FILE_REGISTRY_H) $(FILE_REGISTRY_C) $(FILE_REGISTRY_STAMP)
 	rm -f $(WKAL_HOST) $(VERSION_HEADER)
-	rm -rf $(STORE_GEN) $(STORE_ELF) WK_Autoloader_Store_Restore_V1.2.2.elf
+	rm -rf $(STORE_GEN) $(STORE_ELF) $(RESTORE_ELF) $(CLEAN_ELF)
 
 .PHONY: all host dev clean payload-deps companions
 
@@ -164,8 +164,8 @@ STORE_SRCS  := $(STORE_DIR)/store_remap.c $(STORE_DIR)/tile_edit.c \
 SQLITE_SRC  := $(STORE_DIR)/third_party/sqlite3.c
 SQLITE_FLAGS := -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION \
                 -DSQLITE_OMIT_WAL -DSQLITE_DEFAULT_MEMSTATUS=0 -w
-STORE_VERSION := 1.2.2
-STORE_ELF   := WK_Autoloader_Store_V1.2.2.elf
+STORE_VERSION := 1.2.3
+STORE_ELF   := WK_Store_V$(STORE_VERSION).elf
 STORE_CFLAGS := $(CFLAGS) -DIGNIKEY_STORE -DSTORE_VERSION='"$(STORE_VERSION)"' -I$(STORE_DIR) -I$(STORE_GEN) \
                 -I$(STORE_DIR)/third_party
 
@@ -180,12 +180,25 @@ $(STORE_GEN)/pic0_png.h: $(STORE_DIR)/pic0.png $(STORE_DIR)/tools/embed_png.py
 	@mkdir -p $(STORE_GEN)
 	$(PYTHON) $(STORE_DIR)/tools/embed_png.py $< $@ pic0_png
 
+$(STORE_GEN)/reboot_elf.h: $(STORE_DIR)/reboot.elf $(STORE_DIR)/tools/embed_png.py
+	@mkdir -p $(STORE_GEN)
+	$(PYTHON) $(STORE_DIR)/tools/embed_png.py $< $@ reboot_elf
+
+$(STORE_GEN)/poweroff_elf.h: $(STORE_DIR)/poweroff.elf $(STORE_DIR)/tools/embed_png.py
+	@mkdir -p $(STORE_GEN)
+	$(PYTHON) $(STORE_DIR)/tools/embed_png.py $< $@ poweroff_elf
+
+$(STORE_GEN)/suspend_elf.h: $(STORE_DIR)/suspend.elf $(STORE_DIR)/tools/embed_png.py
+	@mkdir -p $(STORE_GEN)
+	$(PYTHON) $(STORE_DIR)/tools/embed_png.py $< $@ suspend_elf
+
+
 $(STORE_GEN)/sqlite3.o: $(SQLITE_SRC)
 	@mkdir -p $(STORE_GEN)
 	$(CC) -Os -ffunction-sections -fdata-sections -I$(TARGET)/include $(SQLITE_FLAGS) -c -o $@ $<
 
 $(STORE_ELF): $(FILE_REGISTRY_H) $(FILE_REGISTRY_C) $(SRCS) $(STORE_SRCS) \
-              $(STORE_GEN)/icon_png.h $(STORE_GEN)/pic0_png.h $(STORE_GEN)/sqlite3.o \
+              $(STORE_GEN)/icon_png.h $(STORE_GEN)/pic0_png.h $(STORE_GEN)/reboot_elf.h $(STORE_GEN)/poweroff_elf.h $(STORE_GEN)/suspend_elf.h $(STORE_GEN)/sqlite3.o \
               $(STORE_DIR)/config.h $(STORE_DIR)/store_installer_page.h
 	@echo "Building $(STORE_ELF) (Store tile NPXS40047 -> :1022/app/index.html)..."
 	$(CC) $(STORE_CFLAGS) $(LDFLAGS) -o $@ $(SRCS) $(STORE_SRCS) $(FILE_REGISTRY_C) \
@@ -194,13 +207,13 @@ $(STORE_ELF): $(FILE_REGISTRY_H) $(FILE_REGISTRY_C) $(SRCS) $(STORE_SRCS) \
 
 # Full Store restore: undoes NPXS40047 remap (backup or built-in stock).
 # Send to elfldr :9021, then reboot. Not linked into the Store installer ELF.
-RESTORE_ELF := WK_Autoloader_Store_Restore_V1.2.2.elf
+RESTORE_ELF := WK_Store_Restore_V$(STORE_VERSION).elf
 .PHONY: restore
 restore: $(RESTORE_ELF)
 
 $(RESTORE_ELF): $(STORE_DIR)/restore_main.c $(STORE_DIR)/toast.c $(STORE_DIR)/files.c \
                 $(STORE_DIR)/appcache_clean.c \
-                $(STORE_GEN)/sqlite3.o $(STORE_DIR)/config.h
+                $(STORE_GEN)/sqlite3.o $(STORE_GEN)/reboot_elf.h $(STORE_DIR)/config.h
 	@mkdir -p $(STORE_GEN)
 	@echo "Building $(RESTORE_ELF) (restore PS Store tile)..."
 	$(CC) $(STORE_CFLAGS) $(LDFLAGS) -o $@ \
@@ -210,7 +223,7 @@ $(RESTORE_ELF): $(STORE_DIR)/restore_main.c $(STORE_DIR)/toast.c $(STORE_DIR)/fi
 	$(STRIP) $@
 
 # Clean-console test: back up, drop Store AppCache origin, clear manifest_ver.
-CLEAN_ELF := WK_Autoloader_Store_Clean_V$(STORE_VERSION).elf
+CLEAN_ELF := WK_Store_Clean_V$(STORE_VERSION).elf
 .PHONY: clean-elf
 clean-elf: $(CLEAN_ELF)
 

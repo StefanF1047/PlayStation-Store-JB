@@ -565,7 +565,8 @@ int appcache_clean_store_user(const char *userid, appcache_log_fn log)
     char shell[PATH_MAX];
     char db[PATH_MAX];
     struct stat st;
-    int n;
+    int n = 0;
+    int k = -1;
 
     if (!userid || !userid[0])
         return -1;
@@ -579,8 +580,12 @@ int appcache_clean_store_user(const char *userid, appcache_log_fn log)
     /* Always back up this user before any wipe. */
     appcache_backup_user(userid, log);
 
+    /* Forget saved manifest version so the next Store install always
+     * treats AppCache as empty (old JS cannot be kept by version match). */
+    appcache_manifest_clear_version(userid, log);
+
     if (find_db(shell, 0, db, sizeof(db))) {
-        int k = wipe_store_origin_db(db, log);
+        k = wipe_store_origin_db(db, log);
         if (k >= 0) {
             /* Drop wal/shm so WebKit reopens a consistent db. */
             char side[PATH_MAX];
@@ -593,17 +598,24 @@ int appcache_clean_store_user(const char *userid, appcache_log_fn log)
             if (log)
                 log("[WKALI] AppCache: store-origin clear done for %s\n",
                     userid);
-            return k;
+            n += k;
         }
     }
 
-    /* Never wipe the whole ApplicationCache.db: other origins (HearBridge
-     * etc.) live there too. Leave the cache as is. */
-    (void)n;
-    if (log)
-        log("[WKALI] AppCache: origin delete not possible for %s, cache kept\n",
-            userid);
-    return 0;
+    /* Hard sweep: remove ApplicationCache db files and flat-file dirs under
+     * this user webkit/shell. Covers SQLite origin-delete failures and stale
+     * resources. Restore is uninstalling WK; stale Store JS is worse here. */
+    {
+        int w = wipe_files_under(shell, 0, log);
+        if (log)
+            log("[WKALI] AppCache: file sweep for %s removed %d entries\n",
+                userid, w);
+        n += w;
+    }
+
+    if (k < 0 && n == 0 && log)
+        log("[WKALI] AppCache: nothing cleared for %s\n", userid);
+    return n;
 }
 
 int appcache_clean_store_all_users(appcache_log_fn log)

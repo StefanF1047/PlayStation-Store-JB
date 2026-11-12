@@ -3,7 +3,7 @@
  *
  * Sent to elfldr after JB. Installs the Elf Launcher homescreen page
  * only when missing, then exits. Does not start the HTTP server and does
- * not autoload any payloads. Never installs Payload Manager.
+ * not autoload any payloads.
  */
 #include <stdlib.h>
 #include <sys/syscall.h>

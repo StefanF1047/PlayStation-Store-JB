@@ -26,10 +26,11 @@ W.state = {
   progressTimer: 0,
   elapsedTimer: 0,
   elapsedStart: 0,
+  elapsedFrozen: false,
+  elapsedFinalMs: 0,
   launcherHttpOpenStarted: false,
   elfHttpAlreadyUp: false,
-  elMirrorFirst: false,  /* boot sends console mirror EL, bundled only as fallback */
-  elRefreshRan: false,
+  elInstalledFirst: false,  /* bootstrap installed EL only; EL owns its payload configuration */
   launcherChoice: 'elf-launcher',
   exploitMode: null,
   EXPLOIT_URL: '',
@@ -49,7 +50,8 @@ W.state = {
   progressKernelQuiet: false,
   runStage: 'idle', /* idle|countdown|early|armed|done|fail */
   safeRetryLeft: 0,
-  historyPrefer: null
+  historyPrefer: null,
+  payloadLoadingShown: false
 };
 
 W.MAX_LOG_LINES = 80;
@@ -59,6 +61,7 @@ W.LS_ELFLAUNCHER_VER = 'wkal_elflauncher_ver';
 W.LS_CHAIN_KEY = 'wkal_chain_pref';
 W.LS_AUTO_KEY = 'wkal_auto_jb';
 W.LS_DELAY_KEY = 'wkal_start_delay';
+W.LS_REJB_KEY = 'wkal_rejb_confirm';
 W.LS_RETRY_KEY = 'wkal_safe_retries';
 W.LS_THEME_KEY = 'wkal-theme';
 W.LS_SOUND_KEY = 'wkal_sound';
@@ -79,9 +82,9 @@ W.setLauncherChoice = function (choice) {
   return v;
 };
 
-W.BUNDLED_ELFLAUNCHER_SHA = 'c540e4bc3f526d990710074e151cbb4b85b3b5365f3ce77798aab34e3c1e25af';
-W.BUNDLED_ELFLAUNCHER_VER = 'tip';
-W.CONSOLE_MIRROR_URI = 'file:///data/elf-launcher/mirror/elf-launcher.elf';
+W.BUNDLED_ELFLAUNCHER_SHA = '5c4a9c3146cf7ac14ce0dab35358eb5ab9cd17c647735d9fcd0932913ac2a9d2';
+W.BUNDLED_ELFLAUNCHER_VER = '2.1.6';
+W.CONSOLE_LAUNCHER_URI = 'file:///data/elf-launcher/elf-launcher.elf';
 W.STALL_MS = 18000;
 
 W.UMTX2_FIRMWARES = ["1.00","1.01","1.02","1.05","1.10","1.11","1.12","1.13","1.14","2.00","2.20","2.25","2.26","2.30","2.50","2.70","3.00","3.10","3.20","3.21","4.00","4.02","4.03","4.50","4.51","5.00","5.02","5.10","5.50"];
@@ -126,10 +129,8 @@ W.detectFirmware = function () {
 };
 
 W.formatElapsed = function (ms) {
-  var s = Math.floor(ms / 1000);
-  var m = Math.floor(s / 60);
-  s = s % 60;
-  return m + ':' + (s < 10 ? '0' : '') + s;
+  var sec = (Math.max(0, +ms) / 1000);
+  return sec.toFixed(2) + 's';
 };
 
 /* Per-run millisecond marks (jb_start = 0). Logged as [time] ... */
@@ -144,7 +145,7 @@ W.markTiming = function (name, atMs) {
   var ms = (typeof atMs === 'number' && atMs > 0 ? atMs : Date.now()) - W.state.timing.t0;
   W.state.timing.marks[name] = ms;
   W.state.timing.order.push(name);
-  try { W.uiLog('[time] ' + name + ' +' + ms + 'ms', 'info'); } catch (e) {}
+  /* keep short ops log clean: timing stays in W.state.timing only */
 };
 W.logTimingSummary = function () {
   if (!W.state.timing) return '';
@@ -155,7 +156,7 @@ W.logTimingSummary = function () {
   }
   total = Date.now() - W.state.timing.t0;
   try {
-    W.uiLog('[time] summary ' + parts.join(' | ') + ' | total=' + total + 'ms', 'success');
+    /* timing stays in W.state.timing only (ops log removed) */
   } catch (e2) {}
   return { marks: W.state.timing.marks, total: total };
 };
@@ -164,14 +165,28 @@ W.logTimingSummary = function () {
 W.formatLocalDateTime = function (ms) {
   var d = new Date(typeof ms === 'number' ? ms : Date.now());
   function p(n) { return (n < 10 ? '0' : '') + n; }
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-    + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  return p(d.getMonth() + 1) + '-' + p(d.getDate())
+    + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
 };
 
-/* Elapsed line: only "Elapsed 0:42". Date/time lives in Recent jailbreaks. */
+W.showJbOkToast = function (ip) {
+  /* Sony system toast is sent from Relapse (systemNotify). No in-page toast. */
+  void ip;
+};
+
+W.setPowerTilesEnabled = function (on) {
+  var nodes = document.querySelectorAll('.power-tile');
+  for (var i = 0; i < nodes.length; i++) nodes[i].disabled = !on;
+};
+
+
+
 W.paintElapsedLine = function (elapsedStr) {
   if (!W.els.elapsedMsg) return;
-  W.els.elapsedMsg.textContent = W.t('elapsed', { t: elapsedStr || '0:00' });
+  try {
+    W.els.elapsedMsg.hidden = false;
+    W.els.elapsedMsg.textContent = elapsedStr || '';
+  } catch (eE) {}
 };
 
 W.lsGet = function (k, d) {
@@ -182,7 +197,11 @@ W.lsSet = function (k, v) {
 };
 
 W.uiLog = function (message, type) {
-  /* Quiet UI: no debug lines on screen. */
+  /* Ops log removed: keep call sites, write nothing to the UI. */
+  try {
+    var wrap = document.getElementById('logWrapper');
+    if (wrap) wrap.hidden = true;
+  } catch (e) {}
   return null;
 };
 
@@ -196,6 +215,10 @@ W.applyProgressVisual = function (display, message) {
   if (display < 0) display = 0;
   if (display > 100) display = 100;
   W.state.progressDisplay = display;
+  try {
+    if (W.els.progressRing) W.els.progressRing.hidden = false;
+    if (W.els.progressContainer) W.els.progressContainer.hidden = false;
+  } catch (eShow) {}
   var bar = W.els.progressBar;
   if (bar) {
     var pct = (display / 100 * 100).toFixed(1) + '%';
@@ -292,26 +315,78 @@ W.startProgressDriver = function () {
   }
 };
 
-W.stopElapsed = function () {
+W.freezeElapsed = function (atMs) {
+  /* Freeze the on-screen JB timer once, before elfldr. */
+  if (W.state.elapsedFrozen) return;
+  if (!W.state.elapsedStart) {
+    /* Success arrived before the clock started (mirror lag). Wait for startElapsed. */
+    W.state._pendingFreezeAt = (typeof atMs === 'number' && atMs > 0) ? atMs : Date.now();
+    return;
+  }
+  W.state.elapsedFrozen = true;
   if (W.state.elapsedTimer) {
     clearInterval(W.state.elapsedTimer);
     W.state.elapsedTimer = 0;
   }
-  /* Freeze final elapsed + start date/time on the same line. */
-  if (W.els.elapsedMsg && W.state.elapsedStart) {
+  var wall = Date.now();
+  var end = wall;
+  if (typeof atMs === 'number' && atMs > 1e12 && Math.abs(atMs - wall) < 60000) end = atMs;
+  var ms = end - W.state.elapsedStart;
+  if (ms < 0) ms = wall - W.state.elapsedStart;
+  if (ms < 0) ms = 0;
+  W.state.elapsedFinalMs = ms;
+  W.paintElapsedLine(W.formatElapsed(ms));
+};
+
+W.stopElapsed = function () {
+  if (W.state.elapsedFrozen) {
+    W.paintElapsedLine(W.formatElapsed(W.state.elapsedFinalMs || 0));
+    return;
+  }
+  if (W.state.elapsedTimer) {
+    clearInterval(W.state.elapsedTimer);
+    W.state.elapsedTimer = 0;
+  }
+  if (W.state.elapsedStart) {
     W.paintElapsedLine(W.formatElapsed(Date.now() - W.state.elapsedStart));
   }
 };
 
-W.startElapsed = function () {
-  if (W.state.elapsedTimer) return;
-  W.state.elapsedStart = Date.now();
-  W.state.jbStartedAt = W.state.elapsedStart;
-  W.paintElapsedLine('0:00');
+W.resetElapsed = function () {
+  if (W.state.elapsedTimer) {
+    clearInterval(W.state.elapsedTimer);
+    W.state.elapsedTimer = 0;
+  }
+  W.state.elapsedFrozen = false;
+  W.state.elapsedStart = 0;
+  W.state.elapsedFinalMs = 0;
+  W.state._pendingFreezeAt = 0;
+};
+
+W.startElapsed = function (atMs) {
+  if (W.state.elapsedFrozen) return;
+  if (W.state.elapsedStart && W.state.elapsedTimer) return;
+  W.state.elapsedFrozen = false;
+  W.state.elapsedFinalMs = 0;
+  /* Prefer absolute stamp from Relapse line (data-t), else now. */
+  var start = Date.now();
+  if (typeof atMs === 'number' && atMs > 1e12 && atMs <= (Date.now() + 1000)) start = atMs;
+  W.state.elapsedStart = start;
+  W.state.jbStartedAt = start;
+  if (W.state.elapsedTimer) {
+    clearInterval(W.state.elapsedTimer);
+    W.state.elapsedTimer = 0;
+  }
+  W.paintElapsedLine(W.formatElapsed(Math.max(0, Date.now() - start)));
   W.state.elapsedTimer = setInterval(function () {
-    if (!W.els.elapsedMsg) return;
+    if (!W.state.elapsedStart || W.state.elapsedFrozen) return;
     W.paintElapsedLine(W.formatElapsed(Date.now() - W.state.elapsedStart));
-  }, 1000);
+  }, 50);
+  if (W.state._pendingFreezeAt) {
+    var pending = W.state._pendingFreezeAt;
+    W.state._pendingFreezeAt = 0;
+    W.freezeElapsed(pending);
+  }
 };
 
 W.formatChainLabel = function (chain) {
@@ -343,6 +418,26 @@ W.uiSetPayload = function (id, tag, on) {
   if (tg) tg.textContent = t;
 };
 
+/* Cover the silent gap after elfldr READY while the tip/payload is sent
+   and while waiting for Elf Launcher :1000. Call at the READY moment. */
+W.beginPayloadLoading = function (reason) {
+  if (W.state.payloadLoadingShown) return;
+  W.state.payloadLoadingShown = true;
+  try { W.uiSetPayload('plElfldr', 'READY', true); } catch (e1) {}
+  try { W.uiSetPayload('plLauncher', 'LOADING', true); } catch (e2) {}
+  var msg = (W.t && W.t('sendingPayload')) || 'Sending payload...';
+  try {
+    if (W.els && W.els.progressLabel) {
+      W.els.progressLabel.hidden = false;
+      W.els.progressLabel.textContent = msg;
+    }
+  } catch (e3) {}
+  /* No extra toast after elfldr; IP toast only. */
+  try {
+    W.uiLog('[payload] ' + (reason || 'elfldr ready') + ' - ' + msg, 'info');
+  } catch (e5) {}
+};
+
 W.finishProgressSuccess = function (message) {
   try { W.markTiming('jb_done'); W.logTimingSummary(); } catch (eT) {}
   W.state.progressDone = true;
@@ -358,17 +453,33 @@ W.finishProgressSuccess = function (message) {
   W.state.progressDisplay = 100;
   W.applyProgressVisual(100, message || W.t('jailbreakSuccess'));
   try { document.body.className = 'done'; } catch (e) {}
-  try { if (W.uiSetPayload) { W.uiSetPayload('plElfldr','READY',true); } if (W.ui) { W.ui._sysinfoAsked = false; W.ui._netinfoAsked = false; if (W.ui.renderHomeInfo) W.ui.renderHomeInfo(); if (W.ui.renderHistory) W.ui.renderHistory(); } } catch (eP) {}
+  try {
+    if (W.uiSetPayload) { W.uiSetPayload('plElfldr','READY',true); }
+    if (W.ui) {
+      W.ui._consoleInfoAsked = false;
+      W.ui._sysinfoAsked = false;
+      W.ui._netinfoAsked = false;
+      if (W.ui.renderHomeInfo) W.ui.renderHomeInfo();
+      if (W.ui.renderHistory) W.ui.renderHistory();
+    }
+    if (W.persistCfiFromLauncher) {
+      W.persistCfiFromLauncher(function () {});
+      setTimeout(function () { if (W.persistCfiFromLauncher) W.persistCfiFromLauncher(function () {}); }, 800);
+      setTimeout(function () { if (W.persistCfiFromLauncher) W.persistCfiFromLauncher(function () {}); }, 2000);
+    }
+  } catch (eP) {}
   if (W.els.successMsg) {
     W.els.successMsg.textContent = 'Jailbroken';
     W.els.successMsg.hidden = false;
   }
   if (W.els.nextTile) W.els.nextTile.hidden = true;
-  if (W.ui && W.ui.toast) {
-    var wantPm = (W.state.forceAutoloadName === 'pldmgr.elf')
-      || (W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER);
-    W.ui.toast(W.t('jailbreakSuccess'), wantPm ? 'Opening Payload Manager...' : W.t('openingElf'), 'ok');
-  }
+  /* One toast: JB OK + IP:9021. */
+  try { if (W.showJbOkToast) W.showJbOkToast(); } catch (eOk) {}
+  try { if (W.setPowerTilesEnabled) W.setPowerTilesEnabled(true); } catch (ePw) {}
+  try {
+    setTimeout(function () { if (W.setPowerTilesEnabled) W.setPowerTilesEnabled(true); }, 0);
+    setTimeout(function () { if (W.setPowerTilesEnabled) W.setPowerTilesEnabled(true); }, 300);
+  } catch (ePw2) {}
   if (W.ui && W.ui.feedback) W.ui.feedback(true);
 };
 
@@ -460,37 +571,77 @@ W.detectCfiPreJb = function () {
   return W.getCachedCfi(); /* fallback: saved from a prior JB */
 };
 
-/* After JB / when :1000 is up - persist model for next splash. */
+/* After JB / when :1000 is up - persist model + LAN IP for next splash.
+   Elf Launcher :1000/sysinfo (model) and :1000/ip. Store :1022 is fallback in UI. */
 W.persistCfiFromLauncher = function (cb) {
   function done(p) { if (typeof cb === 'function') try { cb(p || null); } catch (e) {} }
-  function take(raw, src) {
+  function takeModel(raw, src) {
     var p = W.setCachedCfi(raw);
     if (p) {
-      W.uiLog('[model] saved ' + p.code + ' (' + p.label + ') from ' + src + ' for next run', 'success');
-      if (W.ui && W.ui.syncChainUi) W.ui.syncChainUi();
-      done(p);
+      if (W.state) W.state.hwModel = p.code;
+      W.uiLog('[model] saved ' + p.code + ' (' + p.label + ') from ' + src, 'success');
+      if (W.ui && W.ui.renderHomeInfo) W.ui.renderHomeInfo();
+      else if (W.ui && W.ui.syncChainUi) W.ui.syncChainUi();
       return true;
+    }
+    if (raw) {
+      var s = String(raw).replace(/[^\x20-\x7e]/g, '').trim();
+      if (s) {
+        if (W.state) W.state.hwModel = s;
+        W.lsSet(W.LS_CFI_KEY, s);
+        if (W.ui && W.ui.renderHomeInfo) W.ui.renderHomeInfo();
+        return true;
+      }
     }
     return false;
   }
-  /* already have one */
+  function takeIp(ip, src) {
+    if (!ip || !/^\d+\.\d+\.\d+\.\d+$/.test(ip) || ip.indexOf('127.') === 0) return false;
+    if (W.state) W.state.lanIp = ip;
+    W.lsSet(W.LS_IP_KEY, ip);
+    W.uiLog('[ip] saved ' + ip + ' from ' + src, 'success');
+    if (W.ui && W.ui.renderHomeInfo) W.ui.renderHomeInfo();
+    return true;
+  }
   var cached = W.getCachedCfi();
-  try {
-    fetch('http://127.0.0.1:1000/sysinfo?t=' + Date.now(), { cache: 'no-store' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j) { done(cached); return; }
-        if (take(j.model || j.cfi || j.consoleModel || j.hwModel || '', 'sysinfo')) return;
-        if (j.info && take(j.info.model || j.info.cfi || '', 'sysinfo.info')) return;
-        /* scan stringified json for CFI-xxxx */
-        var blob = '';
-        try { blob = JSON.stringify(j); } catch (e2) {}
-        var m = blob.match(/CFI-?\d{4}[A-Z0-9]*/i);
-        if (m && take(m[0], 'sysinfo-scan')) return;
-        done(cached);
-      })
-      .catch(function () { done(cached); });
-  } catch (e3) { done(cached); }
+  var pending = 0;
+  var gotModel = false;
+  function fin() {
+    pending -= 1;
+    if (pending > 0) return;
+    done(gotModel ? W.getCachedCfi() : cached);
+  }
+  function eatJson(url, src, kind) {
+    pending += 1;
+    try {
+      fetch(url, { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j) {
+            if (kind !== 'ip') {
+              if (takeModel(j.model || j.cfi || j.consoleModel || j.hwModel || '', src)) gotModel = true;
+              else if (j.info && takeModel(j.info.model || j.info.cfi || '', src + '.info')) gotModel = true;
+              else {
+                var blob = '';
+                try { blob = JSON.stringify(j); } catch (e2) {}
+                var m = blob.match(/CFI-?\d{4}[A-Z0-9]*/i);
+                if (m && takeModel(m[0], src + '-scan')) gotModel = true;
+              }
+            }
+            takeIp(j.ip || j.lanIp || j.address || '', src);
+          }
+          fin();
+        })
+        .catch(function () { fin(); });
+    } catch (e3) { fin(); }
+  }
+  /* After JB, elfldr :9021/sysinfo is the reliable source (EL :1000 is out of chain). */
+  eatJson('http://127.0.0.1:9021/sysinfo?t=' + Date.now(), 'elfldr-9021', 'sys');
+  eatJson('http://127.0.0.1:1022/api/sysinfo?t=' + Date.now(), 'store-1022', 'sys');
+  eatJson('http://127.0.0.1:1022/api/netinfo?t=' + Date.now(), 'store-net', 'ip');
+  eatJson('http://127.0.0.1:1000/sysinfo?t=' + Date.now(), 'sysinfo', 'sys');
+  eatJson('http://127.0.0.1:1000/ip?t=' + Date.now(), 'ip', 'ip');
+  if (!pending) done(cached);
 };
 
 W.consoleLabel = function () {

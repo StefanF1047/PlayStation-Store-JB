@@ -173,7 +173,7 @@ function retry(reason, safeToRelease) {
   setTimeout(() => {
     attemptNumber = nextAttempt;
     startAttempt();
-  }, safeToRelease ? 750 : 50);
+  }, 0); /* immediate retry */
 }
 
 function finishEarlySafeAttempt(reason, detail = "") {

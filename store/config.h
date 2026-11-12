@@ -1,11 +1,11 @@
 #pragma once
 
-/* Store tile remapper for fresh install: open local WK Autoloader. */
+/* Store tile remapper for fresh install: open local WK Store. */
 
 #define TILE_ID     "NPXS40047"
 
 #ifndef TILE_LABEL
-#define TILE_LABEL  "WK Autoloader"
+#define TILE_LABEL  "WK Store"
 #endif
 
 #ifndef TILE_URL

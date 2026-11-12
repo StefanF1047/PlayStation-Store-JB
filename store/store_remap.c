@@ -183,7 +183,7 @@ int store_remap_apply(void)
      * re-apply tile_edit (idempotent UPDATEs). Skip only the one-time backup
      * when already remapped. */
     wkali_log("[STORE] remap start\n");
-    toast("Updating Store tile…");
+    toast("Updating Store tile");
     was_mapped = already_remapped();
     wkali_log("[STORE] already_remapped=%d\n", was_mapped);
     if (!was_mapped) {
@@ -193,7 +193,7 @@ int store_remap_apply(void)
         }
     }
 
-    wkali_log("[STORE] installing assets…\n");
+    wkali_log("[STORE] installing assets...\n");
     if (install_assets() != 0) {
         wkali_log("[STORE] asset install failed\n");
         toast("Asset install failed.");
@@ -202,14 +202,14 @@ int store_remap_apply(void)
     wkali_log("[STORE] assets ok\n");
 
     memset(concept, 0, sizeof(concept));
-    wkali_log("[STORE] editing app.db…\n");
+    wkali_log("[STORE] editing app.db...\n");
     app_rows = tile_edit_app_db(concept, sizeof(concept));
     if (app_rows < 0) {
         wkali_log("[STORE] app.db update failed\n");
         toast("App database update failed.");
         return -1;
     }
-    wkali_log("[STORE] editing appinfo.db…\n");
+    wkali_log("[STORE] editing appinfo.db...\n");
     info_rows = tile_edit_info_db(concept);
     if (info_rows < 0) {
         wkali_log("[STORE] appinfo.db update failed\n");
@@ -220,6 +220,6 @@ int store_remap_apply(void)
     (void)app_rows;
     (void)info_rows;
     wkali_log("[STORE] remap done\n");
-    toast("Store tile ready. Reboot now");
+    toast("Store tile ready");
     return 0;
 }

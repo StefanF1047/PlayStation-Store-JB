@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quick local dev server for the WK Autoloader frontend.
+Quick local dev server for the WK Store frontend.
 
 Serves frontend/autoloader/ the same way the PC host does for the PS5
 browser: the autoloader HTML hardcodes /app/ paths (that is the cached

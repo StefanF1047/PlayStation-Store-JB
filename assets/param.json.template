@@ -6,40 +6,40 @@
     "localizedParameters": {
         "defaultLanguage": "en-US",
         "en-US": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "en-GB": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "es-ES": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "fr-FR": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "de-DE": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "pt-BR": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "ru-RU": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "ja-JP": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "zh-Hans": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "it-IT": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "ar-AE": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         },
         "he-IL": {
-            "titleName": "WK Autoloader"
+            "titleName": "WK Store"
         }
     }
 }

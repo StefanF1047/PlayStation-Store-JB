@@ -1,9 +1,9 @@
 #pragma once
 
-/* Base version of the WK Autoloader (WKAL) content.
+/* Base version of the WK Store (WKAL) content.
  * Bump this when the autoloader frontend changes - it triggers the app-cache
  * update and also marks the matching WKALI installer build. */
-#define WKAL_VERSION "1.0.0"
+#define WKAL_VERSION "1.2.3"
 
 /* Full build version (stable: <base>, dev: <base>-dev-<hash|timestamp>),
  * made by tools/gen_version.py - see include/wkali_version.h */
@@ -13,7 +13,7 @@
  * homebrew HTTP servers (must match the deeplink in assets/param.json.template) */
 #define WKALI_PORT 1022
 
-/* Title ID of the installed homescreen app ("WK Autoloader") */
+/* Title ID of the installed homescreen app ("WK Store") */
 #define WKAL_TITLE_ID "SLKT00001"
 
 /* Process identity - used to kill stale installer instances on startup */

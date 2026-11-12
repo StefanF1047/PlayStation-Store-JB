@@ -3,38 +3,61 @@
 var W = g.WKAL = g.WKAL || {};
 W.ui = W.ui || {};
 
-/* Midnight is the only theme; any stored theme value is ignored. */
-W.ui.applyTheme = function () {
-  document.documentElement.setAttribute('data-theme', 'midnight');
-  return 'midnight';
+W.ui.applyTheme = function (id) {
+  var h = document.documentElement;
+  if (!id) {
+    h.removeAttribute('data-theme');
+    h.className = (h.className || '').replace(/\bdark\b/g, '').replace(/\s+/g, ' ').trim();
+  } else {
+    h.setAttribute('data-theme', id);
+    if (id === 'gold' || id === 'black') {
+      if (!/\bdark\b/.test(h.className)) h.className = (h.className + ' dark').trim();
+    } else {
+      h.className = (h.className || '').replace(/\bdark\b/g, '').replace(/\s+/g, ' ').trim();
+    }
+  }
+  W.lsSet(W.LS_THEME_KEY, id || '');
 };
 
 W.ui.bindTheme = function () {
-  return W.ui.applyTheme();
+  var saved = W.lsGet(W.LS_THEME_KEY, '');
+  if (/^(gray|white|gold|black)$/.test(saved)) W.ui.applyTheme(saved);
+  else W.ui.applyTheme('');
+  function paintOn() {
+    var cur = W.lsGet(W.LS_THEME_KEY, '') || '';
+    var opts = document.querySelectorAll('.themeopt');
+    var i;
+    for (i = 0; i < opts.length; i++) {
+      var th = opts[i].getAttribute('data-theme') || '';
+      if (th === cur) opts[i].classList.add('on');
+      else opts[i].classList.remove('on');
+    }
+  }
+  paintOn();
+  var opts = document.querySelectorAll('.themeopt');
+  var i;
+  for (i = 0; i < opts.length; i++) {
+    opts[i].addEventListener('click', function () {
+      W.ui.applyTheme(this.getAttribute('data-theme') || '');
+      paintOn();
+    });
+  }
 };
 
 W.ui.bindSettings = function () {
   var btn = document.getElementById('settingsBtn');
-  var page = document.getElementById('settingsPage');
-  var splash = document.getElementById('splash');
-  if (!btn || !page) return;
+  var panel = document.getElementById('settingsPanel');
+  if (!btn || !panel) return;
   function setOpen(open) {
-    page.hidden = !open;
-    page.setAttribute('aria-hidden', open ? 'false' : 'true');
-    if (splash) {
-      splash.hidden = !!open;
-      splash.setAttribute('aria-hidden', open ? 'true' : 'false');
-    }
+    panel.hidden = !open;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    document.body.classList.toggle('settings-open', open);
-    document.body.classList.remove('drawer-open');
+    document.body.classList.toggle('drawer-open', open);
   }
-  setOpen(false);
-  btn.addEventListener('click', function () { setOpen(true); });
+  btn.addEventListener('click', function () { setOpen(panel.hidden); });
   var x = document.getElementById('settingsClose');
   if (x) x.addEventListener('click', function () { setOpen(false); btn.focus(); });
   document.addEventListener('keydown', function (e) {
-    if ((e.key === 'Escape' || e.keyCode === 27) && !page.hidden) setOpen(false);
+    if ((e.key === 'Escape' || e.keyCode === 27) && !panel.hidden) setOpen(false);
   });
 };
 
@@ -47,7 +70,7 @@ W.ui.toast = function (title, body, kind) {
   if (t) t.textContent = title || '';
   if (b) b.textContent = body || '';
   box.className = 'show' + (kind === 'ok' ? ' ok' : kind === 'bad' ? ' bad' : kind === 'warn' ? ' warn' : '');
-  if (s) s.textContent = kind === 'ok' ? 'OK' : kind === 'warn' ? '!' : kind === 'bad' ? '!' : '*';
+  if (s) { if (kind === 'ok') s.innerHTML = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.12em"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'; else s.textContent = (kind === 'warn' || kind === 'bad') ? '!' : '\u2022'; }
   clearTimeout(W.ui._toastT);
   W.ui._toastT = setTimeout(function () { box.className = ''; }, 5000);
 };
@@ -96,79 +119,230 @@ W.ui.feedback = function (ok) {
   } catch (e1) {}
 };
 
-W.ui.fmtLogTime = function (ms) {
-  var d = new Date(ms || 0);
-  function z(n) { return n < 10 ? '0' + n : String(n); }
-  return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
-};
-
 W.ui.renderHistory = function () {
   var list = W.els.historyList;
   var empty = W.els.historyEmpty;
   if (!list) return;
   var arr = W.loadHistory();
   list.innerHTML = '';
-  var clr = document.getElementById('clearLog');
-  if (clr) clr.hidden = !arr.length;
   if (!arr.length) {
     if (empty) empty.hidden = false;
     return;
   }
   if (empty) empty.hidden = true;
-  var i, e, row, left, when, what, right, cls, label;
-  for (i = 0; i < arr.length; i++) {
+  var i, e, row, left, right, cls;
+  for (i = 0; i < Math.min(arr.length, 6); i++) {
     e = arr[i];
     row = document.createElement('div');
     row.className = 'hrow';
     left = document.createElement('span');
-    left.className = 'hleft';
-    when = document.createElement('b');
-    when.textContent = W.ui.fmtLogTime(e.at);
-    what = document.createElement('small');
-    what.textContent = (e.chain || '-') + (e.fw && e.fw !== '-' ? ' FW ' + e.fw : '') + (e.note ? ' - ' + e.note : '');
-    left.appendChild(when);
-    left.appendChild(what);
+    left.textContent = (e.chain || '-') + (e.stage && e.stage !== 'done' && e.stage !== 'fail' ? ' · ' + e.stage : '');
+    if (e.ts) {
+      var dt = new Date(e.ts), p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+      if (!isNaN(dt.getTime())) {
+        var ds = document.createElement('span');
+        ds.className = 'hdate';
+        ds.textContent = p2(dt.getDate()) + '/' + p2(dt.getMonth() + 1) + ' ' + p2(dt.getHours()) + ':' + p2(dt.getMinutes());
+        left.appendChild(ds);
+      }
+    }
     right = document.createElement('span');
     cls = e.result === 'ok' ? 'ok' : e.result === 'hang' ? 'hang' : 'fail';
-    label = e.result === 'ok' ? 'Success' : e.result === 'hang' ? 'Stalled' : 'Failed';
-    right.className = 'hres ' + cls;
-    right.textContent = label + ' ' + (e.duration || '');
+    right.className = cls;
+    right.textContent = (e.result === 'ok' ? 'OK' : e.result === 'hang' ? 'STALL' : 'FAIL')
+      + (e.ms != null ? (' ' + e.ms + 'ms') : (e.duration ? (' ' + e.duration) : ''));
     row.appendChild(left);
     row.appendChild(right);
     list.appendChild(row);
   }
+
+};
+
+W.ui.renderHomeInfo = function () {
+  var set = function (id, v) { var el = document.getElementById(id); if (el) el.textContent = v || '-'; };
+  var fw = null, chain = null;
+  try { fw = W.detectFirmware(); } catch (e) {}
+  try {
+    if (!fw || W.recommendChain(fw)) {
+      chain = W.state && W.state.exploitMode ? W.state.exploitMode : W.getChainPref();
+    }
+  } catch (e2) {}
+  set('hiFw', fw && fw.str ? fw.str : '-');
+  set('hiChain', chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : '-');
+  set('ldFw', fw && fw.str ? fw.str : '-');
+  set('ldChain', chain ? chain.charAt(0).toUpperCase() + chain.slice(1) : '-');
+
+  /* Model: live → cached CFI. Never '-' if we have a saved value. */
+  var showModel = function (raw) {
+    var p = raw ? W.parseCfi(raw) : null;
+    if (!p && W.getCachedCfi) p = W.getCachedCfi();
+    var label = '';
+    if (p) {
+      if (p.kind !== 'PS5') label = p.code + ' \u00b7 ' + p.kind + (p.media && p.kind !== 'Pro' ? ' ' + p.media : '');
+      else label = p.code || '';
+    } else if (raw) label = String(raw).slice(0, 32);
+    else {
+      var rawCached = W.lsGet(W.LS_CFI_KEY, '') || '';
+      if (rawCached) label = String(rawCached).slice(0, 32);
+    }
+    set('hiModel', label || '-');
+    set('ldModel', label || '-');
+  };
+  if (W.state && W.state.hwModel) showModel(W.state.hwModel);
+  else showModel('');
+
+  /* IP: live → localStorage. Never '-' if saved. */
+  var ip = (W.state && W.state.lanIp) ? W.state.lanIp : (W.lsGet(W.LS_IP_KEY, '') || '');
+  set('hiIp', ip || '-');
+  set('ldIp', ip || '-');
+
+  /* Live fill: prefer Elf Launcher :1000 (after JB), then Store :1022. */
+  if (!W.ui._consoleInfoAsked) {
+    W.ui._consoleInfoAsked = true;
+    W.ui._sysinfoAsked = true;
+    W.ui._netinfoAsked = true;
+    function applyModel(m) {
+      if (!m) return;
+      if (W.state) W.state.hwModel = m;
+      if (W.parseCfi(m)) W.setCachedCfi(m); else W.lsSet(W.LS_CFI_KEY, m);
+      showModel(m);
+    }
+    function applyIp(ip) {
+      if (!ip || !/^\d+\.\d+\.\d+\.\d+$/.test(ip) || ip.indexOf('127.') === 0) return;
+      if (W.state) W.state.lanIp = ip;
+      W.lsSet(W.LS_IP_KEY, ip);
+      set('hiIp', ip); set('ldIp', ip);
+    }
+    function xhrJson(url, onok) {
+      try {
+        var x = new XMLHttpRequest();
+        x.open('GET', url, true);
+        x.timeout = 3000;
+        x.onload = function () {
+          try { onok(JSON.parse(x.responseText || '{}')); } catch (e0) {}
+        };
+        x.send();
+      } catch (e1) {}
+    }
+    xhrJson('http://127.0.0.1:1000/sysinfo?t=' + Date.now(), function (j) {
+      if (!j) return;
+      var m = '';
+      if (typeof j.model === 'string') m = j.model;
+      else if (typeof j.cfi === 'string') m = j.cfi;
+      else if (typeof j.consoleModel === 'string') m = j.consoleModel;
+      else if (typeof j.hwModel === 'string') m = j.hwModel;
+      m = String(m || '').replace(/[^\x20-\x7e]/g, '').trim();
+      if (!m) {
+        try {
+          var blob = JSON.stringify(j);
+          var mm = blob.match(/CFI-?\d{4}[A-Z0-9]*/i);
+          if (mm) m = mm[0];
+        } catch (e2) {}
+      }
+      applyModel(m);
+      if (j.ip) applyIp(j.ip);
+    });
+    xhrJson('http://127.0.0.1:1000/ip?t=' + Date.now(), function (j) {
+      if (j) applyIp(j.ip || j.address || '');
+    });
+    xhrJson('http://127.0.0.1:1022/api/sysinfo?t=' + Date.now(), function (j) {
+      if (!j) return;
+      var m = typeof j.model === 'string' ? j.model.replace(/[^\x20-\x7e]/g, '').trim() : '';
+      applyModel(m);
+      if (j.ip) applyIp(j.ip);
+    });
+    xhrJson('http://127.0.0.1:1022/api/netinfo?t=' + Date.now(), function (j) {
+      if (j) applyIp(j.ip || '');
+    });
+  }
+  var a = document.getElementById('autoJailbreak');
+  set('hiAuto', a ? (a.checked ? 'On' : 'Off') : '-');
 };
 
 W.ui.syncChainUi = function () {
-  var pref = 'relapse';
-  try { W.setChainPref('relapse'); } catch (e) {}
-  var auto = document.getElementById('chainAuto');
-  var rel = document.getElementById('chainRelapse');
+  try { W.ui.renderHomeInfo(); } catch (eh) {}
+  var fw = W.detectFirmware();
+  var pref = W.getChainPref();
+  var rec = fw ? W.recommendChain(fw) : null;
+  var chip = W.els.detectChip;
+  var unsup = W.els.unsupportedMsg;
   var umtx = document.getElementById('chainUmtx2');
   var poops = document.getElementById('chainPoops');
-  if (auto) auto.hidden = true;
-  if (umtx) umtx.hidden = true;
-  if (poops) poops.hidden = true;
-  if (rel) {
-    rel.hidden = false;
-    rel.classList.add('on');
-  }
-  var hint = document.getElementById('chainHint');
-  if (hint) hint.textContent = W.t('chainRelapseHint') || 'Relapse only';
-};
+  var relapse = document.getElementById('chainRelapse');
+  var auto = document.getElementById('chainAuto');
+  var hint = W.els.chainHint;
+  var start = document.getElementById('startJailbreak');
 
+  /* Always show every chain with its FW range; grey out the ones that
+   * cannot run on the detected firmware (unknown FW = leave all enabled). */
+  function gate(btn, chain) {
+    if (!btn) return;
+    var ok = !fw || W.fwSupports(chain, fw);
+    btn.hidden = false;
+    btn.disabled = !ok;
+    btn.setAttribute('aria-disabled', ok ? 'false' : 'true');
+    btn.title = ok ? '' : W.t('chainOff');
+    if (ok) btn.classList.remove('off'); else btn.classList.add('off');
+  }
+  /* umtx2 / Poops removed from UI; never show. */
+  if (umtx) { umtx.hidden = true; umtx.disabled = true; }
+  gate(relapse, 'relapse');
+  if (poops) { poops.hidden = true; poops.disabled = true; }
+  if (auto) { auto.hidden = true; auto.disabled = true; }
+
+  var opts = document.querySelectorAll('#chainRow .opt');
+  var i;
+  for (i = 0; i < opts.length; i++) {
+    var c = opts[i].getAttribute('data-chain');
+    if (c === pref) opts[i].classList.add('on');
+    else opts[i].classList.remove('on');
+  }
+
+  var unsupported = fw && fw.num >= 6.0 && fw.num < 7.0;
+  if (unsup) unsup.hidden = !unsupported;
+  if (start) start.disabled = !!unsupported || W.state.chainStarted;
+
+  if (chip) {
+    if (!fw) {
+      chip.textContent = W.t('consoleNotDetected');
+      chip.className = 'chip bad';
+    } else if (unsupported) {
+      chip.textContent = W.t('fwUnsupported', { fw: fw.str });
+      chip.className = 'chip bad';
+    } else {
+      var show = pref === 'auto' ? (rec || 'auto') : pref;
+      var cfi = W.getCachedCfi && W.getCachedCfi();
+      if (cfi) {
+        chip.textContent = W.t('fwModelChain', {
+          fw: fw.str,
+          model: cfi.code + ' · ' + cfi.label,
+          chain: W.formatChainLabel(show)
+        });
+        chip.title = cfi.code + ' · ' + cfi.label;
+      } else {
+        chip.textContent = W.t('fwChain', {
+          fw: fw.str,
+          chain: W.formatChainLabel(show)
+        });
+        chip.title = '';
+      }
+      chip.className = 'chip ok';
+    }
+  }
+  if (hint) {
+    if (pref === 'auto' && rec) hint.textContent = W.t('chainAutoPicks', { chain: W.formatChainLabel(rec) });
+    else if (pref === 'poops') hint.textContent = W.t('chainPoopsHint');
+    else if (pref === 'relapse') hint.textContent = W.t('chainRelapseHint');
+    else if (pref === 'umtx2') hint.textContent = W.t('chainUmtx2Desc');
+    else hint.textContent = '';
+  }
+  /* Prefetch recommended chain entry for faster arm (no exploit run). */
+  if (rec) W.preloadChainFiles(rec);
+};
 
 W.ui.showStall = function (allowRestart) {
   var el = W.els.stallMsg;
-  if (W.setRunStatus) {
-    W.setRunStatus(allowRestart ? 'Taking longer than usual. Press Start to retry' : 'Taking longer than usual. Restart the console if stuck');
-  }
-  if (allowRestart) {
-    W.state.stallRestart = true;
-    var goS = document.getElementById('startJailbreak');
-    if (goS) goS.disabled = false;
-  }
-  if (!el) { W.recordRun('hang', 'No progress'); return; }
+  if (!el) return;
   el.hidden = false;
   el.innerHTML = '';
   var p = document.createElement('p');
@@ -187,7 +361,7 @@ W.ui.showStall = function (allowRestart) {
     p2.textContent = W.t('stallSensitive');
     el.appendChild(p2);
   }
-  W.recordRun('hang', 'No progress');
+  W.recordRun('hang');
 };
 
 W.ui.hideStall = function () {
@@ -206,44 +380,61 @@ W.ui.bindHome = function () {
   var cancel = document.getElementById('cancelAutoStart');
   var auto = document.getElementById('autoJailbreak');
   var delay = document.getElementById('startDelay');
+  var retry = document.getElementById('retryCount');
   var delayVal = document.getElementById('startDelayVal');
+  var retryVal = document.getElementById('retryCountVal');
   var sound = document.getElementById('soundToggle');
   var openOnly = document.getElementById('openLauncherOnly');
   var autoTimer = 0;
   var remaining = 0;
+  var delayCur = 3;
 
   function delaySec() {
-    var n = delay ? parseFloat(delay.value) : 3;
+    var n = parseFloat(delayCur);
     if (isNaN(n)) n = 3;
-    n = Math.round(Math.min(5, Math.max(0, n)) * 2) / 2;
+    return Math.round(Math.min(3, Math.max(0, n)));
+  }
+  function retryN() {
+    var n = retry ? parseInt(retry.value, 10) : 1;
+    if (isNaN(n) || n < 0) n = 0;
+    if (n > 3) n = 3;
     return n;
   }
   function paintSliders() {
-    if (delayVal) {
-      var ds = delaySec();
-      delayVal.textContent = ((ds % 1 === 0) ? String(ds | 0) : String(ds)) + 's';
+    if (delay) {
+      var db = delay.querySelectorAll('.opt[data-delay]'), k;
+      for (k = 0; k < db.length; k++) {
+        if (Number(db[k].getAttribute('data-delay')) === delaySec()) db[k].classList.add('on');
+        else db[k].classList.remove('on');
+      }
     }
+    if (retryVal) retryVal.textContent = String(retryN());
   }
 
-  /* Auto-start OFF by default (first visit / new key). */
-  var savedAuto = W.lsGet(W.LS_AUTO_KEY, '0');
-  if (auto) auto.checked = savedAuto === '1';
-  if (delay) { var dv = parseFloat(W.lsGet(W.LS_DELAY_KEY, '3')); if (isNaN(dv)) dv = 3; delay.value = String(Math.round(Math.min(5, Math.max(0, dv)) * 2) / 2); }
+  /* Auto-start ON by default (first visit). */
+  var savedAuto = W.lsGet(W.LS_AUTO_KEY, '1');
+  if (auto) auto.checked = savedAuto !== '0';
+  function paintAuto() {
+    var tile = document.getElementById('autoStartTile');
+    var st = document.getElementById('autoStartState');
+    var on = !!(auto && auto.checked);
+    if (tile) { if (on) tile.classList.add('on'); else tile.classList.remove('on'); }
+    if (st) st.textContent = on ? 'On' : 'Off';
+    try { W.ui.renderHomeInfo(); } catch (eh) {}
+  }
+  paintAuto();
+  if (delay) { var dv = parseFloat(W.lsGet(W.LS_DELAY_KEY, '0')); if (isNaN(dv)) dv = 3; delayCur = Math.round(Math.min(3, Math.max(0, dv))); }
+  if (retry) { var rv = parseInt(W.lsGet(W.LS_RETRY_KEY, '1'), 10); if (isNaN(rv)) rv = 1; retry.value = String(Math.min(3, Math.max(0, rv))); }
   if (sound) sound.checked = W.ui.soundOn();
   paintSliders();
 
-  function paintGo(label) {
-    if (!go) return;
-    go.textContent = label || 'START';
-  }
   function cancelCountdown() {
     if (autoTimer) { clearInterval(autoTimer); autoTimer = 0; }
     W.state.runStage = 'idle';
-    try { document.body.classList.remove('running'); document.body.classList.remove('countdown'); } catch (eR2) {}
     if (go && !W.state.chainStarted) {
       go.disabled = false;
       go.classList.remove('is-cancel');
-      paintGo(W.t('startJailbreak'));
+      go.textContent = W.t('startJailbreak');
     }
     if (cancel) cancel.hidden = true;
     if (W.els.countdownHint) W.els.countdownHint.textContent = '';
@@ -252,97 +443,185 @@ W.ui.bindHome = function () {
   function beginJailbreak() {
     if (W.state.chainStarted) return;
     cancelCountdown();
-    if (go) { go.disabled = true; go.classList.remove('is-cancel'); paintGo(W.t('starting')); }
-    W.state.safeRetryLeft = 0;
-    try { document.body.classList.remove('countdown'); document.body.classList.add('running'); } catch (eR) {}
-    W.state.launcherChoice = W.CHOICE_ELF_LAUNCHER;
-    W.lsSet(W.LS_LAUNCHER_KEY, W.CHOICE_ELF_LAUNCHER);
+    if (go) { go.disabled = true; go.classList.remove('is-cancel'); go.textContent = W.t('starting'); }
+    W.state.safeRetryLeft = retryN();
+    W.state.launcherChoice = W.getLauncherChoice ? W.getLauncherChoice() : W.CHOICE_ELF_LAUNCHER;
     if (W.start) W.start();
   }
 
+  function markAlreadyJailbroken() {
+    W.state.alreadyJailbroken = true;
+    cancelCountdown();
+    if (go) {
+      go.disabled = true;
+      go.classList.remove('is-cancel');
+      go.textContent = W.t('alreadyJailbroken');
+    }
+    if (openOnly) openOnly.hidden = false;
+    try { W.uiLog(W.t('alreadyJailbroken'), 'success'); } catch (eAj) {}
+  }
+
   function startCountdown() {
+    if (W.state.alreadyJailbroken) { markAlreadyJailbroken(); return; }
     if (W.state.chainStarted || autoTimer || !go) return;
     var fw = W.detectFirmware();
     if (fw && fw.num >= 6.0 && fw.num < 7.0) return;
     remaining = delaySec();
     W.state.runStage = 'countdown';
-    if (remaining <= 0) { beginJailbreak(); return; }
+        if (remaining <= 0) {
+      /* Delay 0: start now. First-run fill only. */
+      cancelCountdown();
+      if (go) { go.disabled = true; go.classList.remove("is-cancel"); go.textContent = W.t("starting"); }
+      W.state.safeRetryLeft = retryN();
+      W.state.launcherChoice = W.getLauncherChoice ? W.getLauncherChoice() : W.CHOICE_ELF_LAUNCHER;
+      if (W.start) W.start();
+      return;
+    }
     go.disabled = false;
     go.classList.add('is-cancel');
-    try { document.body.classList.add('countdown'); } catch (eCd) {}
-    paintGo(W.t('cancel') + ' - ' + remaining);
+    go.textContent = W.t('cancel') + ' · ' + remaining;
     if (cancel) cancel.hidden = true;
     if (W.els.countdownHint) W.els.countdownHint.textContent = '';
     autoTimer = setInterval(function () {
-      remaining -= 0.5;
+      remaining -= 1;
       if (remaining <= 0) {
         clearInterval(autoTimer); autoTimer = 0;
         if (cancel) cancel.hidden = true;
         beginJailbreak();
         return;
       }
-      paintGo(W.t('cancel') + ' - ' + remaining);
-    }, 500);
+      go.textContent = W.t('cancel') + ' · ' + remaining;
+    }, 1000);
   }
 
   var chainBtns = document.querySelectorAll('#chainRow .opt');
   var i;
   for (i = 0; i < chainBtns.length; i++) {
     chainBtns[i].addEventListener('click', function () {
-      W.setChainPref(this.getAttribute('data-chain') || 'auto');
+      W.setChainPref('relapse');
       W.ui.syncChainUi();
     });
   }
   if (auto) auto.addEventListener('change', function () {
-    /* Save only. Auto-start runs once at page load, never when the box is ticked. */
     W.lsSet(W.LS_AUTO_KEY, auto.checked ? '1' : '0');
-    if (!auto.checked) cancelCountdown();
+    paintAuto();
+    if (auto.checked) startCountdown();
+    else cancelCountdown();
   });
-  if (delay) delay.addEventListener('input', function () {
+  function onDelayMove() {
     W.lsSet(W.LS_DELAY_KEY, String(delaySec()));
     paintSliders();
-  });
+  }
+  function onRetryMove() {
+    W.lsSet(W.LS_RETRY_KEY, String(retryN()));
+    paintSliders();
+  }
+  if (delay) {
+    delay.addEventListener('click', function (ev) {
+      var b = ev.target;
+      while (b && b !== delay && !(b.getAttribute && b.getAttribute('data-delay'))) b = b.parentNode;
+      if (!b || b === delay) return;
+      delayCur = Number(b.getAttribute('data-delay'));
+      if (isNaN(delayCur)) delayCur = 3;
+      onDelayMove();
+    });
+  }
+  if (retry) {
+    retry.addEventListener('input', onRetryMove);
+    retry.addEventListener('change', onRetryMove);
+    retry.addEventListener('mousemove', onRetryMove);
+    retry.addEventListener('touchmove', onRetryMove);
+  }
   if (sound) sound.addEventListener('change', function () {
     W.lsSet(W.LS_SOUND_KEY, sound.checked ? '1' : '0');
   });
-  var clearBtn = document.getElementById('clearLog');
-  if (clearBtn) clearBtn.addEventListener('click', function () { if (W.clearHistory) W.clearHistory(); });
   if (cancel) cancel.addEventListener('click', cancelCountdown);
-  if (go) go.addEventListener('click', function () {
-    if (W.state.chainStarted) {
-      /* v13: after a failed run Start reloads the page for a clean new attempt. No cancel mid-run. */
-      if (W.state.runStage === 'fail' || W.state.stallRestart) {
-        try { sessionStorage.setItem('wk_start_now', '1'); } catch (eSs) {}
-        try { location.reload(); } catch (eRl) {}
+  if (go) {
+    var goLock = 0;
+    function onGo(e) {
+      if (goLock) return;
+      goLock = 1;
+      setTimeout(function () { goLock = 0; }, 400);
+      if (e) {
+        try { e.preventDefault(); } catch (e0) {}
+        try { e.stopPropagation(); } catch (e1) {}
       }
-      return;
+      if (W.state.chainStarted) return;
+      /* Same button: Start -> Cancel during countdown -> Start. */
+      if (autoTimer) { cancelCountdown(); return; }
+      startCountdown();
     }
-    /* Same button: Start -> Cancel during countdown -> Start. */
-    if (autoTimer) { cancelCountdown(); return; }
-    startCountdown();
-  });
-  if (openOnly) openOnly.addEventListener('click', function () {
-    if (W.launcher && W.launcher.openNow) W.launcher.openNow();
-  });
+    /* Click only: mousedown+click both fired onGo and cancelled the countdown. */
+    go.onclick = onGo;
+    go.onmousedown = null;
+    go.ontouchend = null;
+  }
+  if (openOnly) {
+    openOnly.onclick = function () {
+      if (W.launcher && W.launcher.openNow) W.launcher.openNow();
+    };
+  }
 
   if (W.detectCfiPreJb) W.detectCfiPreJb();
   W.ui.syncChainUi();
   W.ui.renderHistory();
 
-  /* Quick non-blocking probe: if Elf already up, show Open button. */
-  if (W.launcher && W.launcher.probeQuick) {
-    W.launcher.probeQuick(function (up) {
-      if (openOnly) openOnly.hidden = !up;
-      if (up) W.ui.refreshCfiFromLauncher();
-    });
+  /* Quick non-blocking probe: if Elf already up, show Open button.
+     If elfldr (:9021) or Elf Launcher (:1000) answers, console is already
+     jailbroken — do not auto-run the exploit. */
+  function afterProbe(elfUp, ldrUp) {
+    if (openOnly) openOnly.hidden = !elfUp;
+    if (elfUp) try { W.ui.refreshCfiFromLauncher(); } catch (eC) {}
+    if (elfUp || ldrUp) { markAlreadyJailbroken(); return; }
+    if (auto && auto.checked) startCountdown();
   }
-
-  var startNow = false;
-  try { startNow = sessionStorage.getItem('wk_start_now') === '1'; sessionStorage.removeItem('wk_start_now'); } catch (eSn) {}
-  if (startNow) setTimeout(beginJailbreak, 400);
-  else if (auto && auto.checked) startCountdown();
+  if (W.launcher && (W.launcher.probeQuick || W.launcher.probeElfldr)) {
+    var got = 0, elfUp = false, ldrUp = false;
+    function one() {
+      got += 1;
+      if (got >= 2) afterProbe(elfUp, ldrUp);
+    }
+    if (W.launcher.probeQuick) W.launcher.probeQuick(function (up) { elfUp = !!up; one(); });
+    else one();
+    if (W.launcher.probeElfldr) W.launcher.probeElfldr(function (up) { ldrUp = !!up; one(); });
+    else one();
+  } else if (auto && auto.checked) {
+    startCountdown();
+  }
 
   W.ui._cancelCountdown = cancelCountdown;
   W.ui._startCountdown = startCountdown;
+};
+
+W.ui.applyLauncherChoice = function (choice) {
+  var pickElf = document.getElementById('pickElf');
+  var sub = document.getElementById('homeSubShort');
+  var heroIco = document.getElementById('heroIco');
+  if (pickElf) pickElf.classList.add('on');
+  if (sub) {
+    sub.setAttribute('data-i18n', 'homeSubShort');
+    sub.textContent = W.t('homeSubShort') || 'Then opens Elf Launcher';
+  }
+  if (heroIco) heroIco.src = 'elf-launcher-icon.png';
+};
+
+W.ui.bindLauncherChoice = function () {
+  var pickElf = document.getElementById('pickElf');
+  function bind(el, choice) {
+    if (!el) return;
+    function pick(e) {
+      if (e) {
+        try { e.preventDefault(); } catch (e0) {}
+        try { e.stopPropagation(); } catch (e1) {}
+      }
+      W.setLauncherChoice(choice);
+    }
+    /* Click only: mousedown+click double-fires on PS5 WebKit. */
+    el.onclick = pick;
+    el.onmousedown = null;
+    el.ontouchend = null;
+  }
+  bind(pickElf, W.CHOICE_ELF_LAUNCHER);
+  W.ui.applyLauncherChoice(W.getLauncherChoice());
 };
 })(typeof window !== 'undefined' ? window : this);

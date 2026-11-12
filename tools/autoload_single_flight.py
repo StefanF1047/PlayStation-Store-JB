@@ -28,7 +28,7 @@ POOPS_OLD = f"""async function startAutoload() {{
             why: "the ELF loader is not accepting connections on port 9021" }}, "*"); }} catch (e) {{ }}
         return;
     }}
-    // Let elfldr settle before sending payload.elf (avoids panic on Payload Manager).
+    // Let elfldr settle before sending payload.elf (avoids panic if send too soon).
     await new Promise(function (resolve) {{ setTimeout(resolve, {SETTLE_MS}); }});
     sendPayloadToElfldr(cfg.autoload, "../../payloads/").then(function (r) {{
         flushMark("AUTOLOAD-OK", "name=" + cfg.autoload + "-bytes=" + r.bytes);
@@ -72,7 +72,7 @@ POOPS_NEW = f"""async function startAutoload() {{
             why: "the ELF loader is not accepting connections on port 9021" }}, "*"); }} catch (e) {{ }}
         return;
     }}
-    // Let elfldr settle before sending payload.elf (avoids panic on Payload Manager).
+    // Let elfldr settle before sending payload.elf (avoids panic if send too soon).
     await new Promise(function (resolve) {{ setTimeout(resolve, {SETTLE_MS}); }});
     await sendPayloadToElfldr(cfg.autoload, "../../payloads/").then(function (r) {{
         window.__wkalAutoloadSent = true;
@@ -106,7 +106,7 @@ P2JB_OLD = f"""async function startAutoload() {{
             why: "the ELF loader is not accepting connections on port 9021" }}, "*"); }} catch (e) {{ }}
         return;
     }}
-    // Let elfldr settle before sending payload.elf (avoids panic on Payload Manager).
+    // Let elfldr settle before sending payload.elf (avoids panic if send too soon).
     await new Promise(function (resolve) {{ setTimeout(resolve, {SETTLE_MS}); }});
     sendPayloadToElfldr(AUTOLOAD, "../../payloads/")
         .then(function (r) {{
@@ -162,7 +162,7 @@ P2JB_NEW = f"""async function startAutoload() {{
             why: "the ELF loader is not accepting connections on port 9021" }}, "*"); }} catch (e) {{ }}
         return;
     }}
-    // Let elfldr settle before sending payload.elf (avoids panic on Payload Manager).
+    // Let elfldr settle before sending payload.elf (avoids panic if send too soon).
     await new Promise(function (resolve) {{ setTimeout(resolve, {SETTLE_MS}); }});
     await sendPayloadToElfldr(AUTOLOAD, "../../payloads/")
         .then(function (r) {{

@@ -1,7 +1,7 @@
 /*
- * PS5 Homescreen App Installer for the WK Autoloader Installer.
- * Based on the original implementation in ftpsrv by John Törnblom
- * and Payload Manager by X-F1REBALL-X.
+ * PS5 Homescreen App Installer for the WK Store Installer.
+ * Based on the original implementation in ftpsrv by John Tײ³ֲ¶rnblom
+ * by X-F1REBALL-X.
  */
 
 #include <errno.h>
@@ -123,9 +123,8 @@ int wkali_install_app(void) {
   int first_install = !wkali_page_installed();
   if (first_install) {
     wkali_log("[WKALI] Installing browser launcher app (%s)...\n", title_id);
-    wkali_notify("Installing…");
   } else {
-    wkali_log("[WKALI] Page already present (%s). Updating quietly…\n",
+    wkali_log("[WKALI] Page already present (%s). Updating quietly...\n",
               title_id);
   }
 
@@ -163,10 +162,6 @@ int wkali_install_app(void) {
   }
 
   wkali_log("[WKALI] Launcher app installed successfully.\n");
-  if (first_install)
-    wkali_notify("Home icon installed");
-  else
-    wkali_notify("WK Autoloader updated");
 
   sceAppInstUtilTerminate();
   return 0;
@@ -196,7 +191,6 @@ static int install_title_if_missing(const char *title_id, const char *label,
   }
 
   wkali_log("[WKALI] Installing %s (%s)...\n", label, title_id);
-  wkali_notify("Installing…");
 
   if ((err = sceAppInstUtilInitialize())) {
     wkali_log("[WKALI] sceAppInstUtilInitialize: error 0x%08X\n", err);
@@ -235,10 +229,10 @@ static int install_title_if_missing(const char *title_id, const char *label,
   }
 
   wkali_log("[WKALI] %s installed successfully.\n", label);
-  wkali_notify("Home icon installed");
   sceAppInstUtilTerminate();
   return 0;
 }
+
 
 #ifdef IGNIKEY_STORE
 /* Find a registry entry whose path ends with suffix (versioned /app/<ver>/...). */
@@ -310,29 +304,13 @@ int wkali_seed_launcher_files(void) {
     wkali_log("[WKALI] launcher install: mkdir failed (errno %d)\n", errno);
     return -1;
   }
-  (void)mkdir_p("/data/elf-launcher/mirror", 0755);
 
-  /* Keep WK Store WebKit open after tip: EL Leave-closed closes Store via
-   * navigateToHome and that can crash right after elfldr. Force open-after-jb. */
-  {
-    FILE *oaj = fopen("/data/elf-launcher/open-after-jb", "w");
-    if (oaj) {
-      fputc('1', oaj);
-      fputc('\n', oaj);
-      fclose(oaj);
-    } else {
-      wkali_log("[WKALI] launcher install: open-after-jb write failed (errno %d)\n", errno);
-    }
-  }
-
-  /* Tip executable for EL (installed + console mirror for 1.2.1 elauto). */
+  /* Install the serving executable in EL's own directory. No payload queue. */
   if (seed_registry_elf_to_path("/payloads/elf-launcher.elf",
                                 "/data/elf-launcher/elf-launcher.elf") != 0)
     rc = -1;
-  if (seed_registry_elf_to_path("/payloads/elf-launcher.elf",
-                                "/data/elf-launcher/mirror/elf-launcher.elf") != 0)
-    rc = -1;
 
+  /* Never keep .sha256 sidecars in the console mirror folder. */
   remove("/data/elf-launcher/mirror/elf-launcher.elf.sha256");
 
   /* Permanent elfldr copy OUTSIDE mirror/ so tip AutoPayload never reloads it. */
@@ -340,12 +318,9 @@ int wkali_seed_launcher_files(void) {
                                 "/data/elf-launcher/elfldr-ps5.elf") != 0)
     rc = -1;
 
+  /* Drop leftover from older Store builds that seeded elfldr into mirror/. */
   remove("/data/elf-launcher/mirror/elfldr-ps5.elf");
   remove("/data/elf-launcher/mirror/elfldr.elf");
-
-  /* Never seed Payload Manager. */
-  remove("/data/elf-launcher/mirror/pldmgr.elf");
-  remove("/data/elf-launcher/pldmgr.elf");
 
   return rc;
 }
@@ -356,15 +331,14 @@ int wkali_seed_launcher_files(void) { return 0; }
 int wkali_install_companions(void) {
   int rc = 0;
 
-  /* Elf Launcher homescreen page only. Never install Payload Manager. */
+  /* Elf Launcher homescreen page when missing. Never autoload payloads. */
   if (install_title_if_missing("ELFL00001", "Elf Launcher", elfl_param_json,
                                elfl_param_json_size, elfl_icon0_png,
                                elfl_icon0_png_size))
     rc = -1;
 
-  /* Seed tip EL + elfldr only; never create or modify EL auto.list. */
+  /* Install EL bootstrap files only; never create or modify its auto.list. */
   if (wkali_seed_launcher_files() != 0)
     rc = -1;
   return rc;
 }
-

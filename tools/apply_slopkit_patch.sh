@@ -65,8 +65,8 @@ else
     exit 1
 fi
 
-# Extra settle after elfldr accepts (Payload Manager panic if too soon).
-# Register elf-launcher/mark/companions/pldmgr as hidden PAYLOADS (not in the base patch).
+# Extra settle after elfldr accepts (avoid panic if send too soon).
+# Register elf-launcher/mark/companions as hidden PAYLOADS (not in the base patch).
 # Hybrid may send elf-launcher.elf when :1000 is down.
 python3 "$ROOT/tools/slopkit_autoload_settle.py" "$DEST"
 python3 "$ROOT/tools/slopkit_autoload_elf_launcher.py" "$DEST"
@@ -74,7 +74,7 @@ python3 "$ROOT/tools/autoload_resend_listener.py" "$DEST"
 python3 "$ROOT/tools/autoload_single_flight.py" "$DEST"
 python3 "$ROOT/tools/slopkit_autoload_wkal_mark.py" "$DEST"
 python3 "$ROOT/tools/slopkit_autoload_on_ready.py" "$DEST"
-# STAGE5-DONE / elfldr ready injects chosen autoload (elf-launcher/pldmgr/wkal-skip);
+# STAGE5-DONE / elfldr ready injects chosen autoload (elf-launcher/wkal-skip);
 # settle ~150ms after elfldrAccepting(); Sent flag blocks STAGE5+ladder
 # double-send; resend clears Sent. Hybrid Elf: wkal-skip when :1000 up.
 
@@ -86,8 +86,6 @@ if ! grep -q 'sendPayloadToElfldr(cfg.autoload, "../../payloads/"' slopkit/poops
     || ! grep -q 'name: "payload.elf"' slopkit/poops.html \
     || ! grep -q 'name: "elf-launcher.elf"' slopkit/poops.html \
     || ! grep -q 'name: "elf-launcher.elf"' slopkit/p2jb.html \
-    || ! grep -q 'name: "pldmgr.elf"' slopkit/poops.html \
-    || ! grep -q 'name: "pldmgr.elf"' slopkit/p2jb.html \
     || ! grep -q '"url=../../shared/" + name' slopkit/poops.js \
     || ! grep -q 'const AUTOLOAD = Q.get("autoload")' slopkit/p2jb.html \
     || ! grep -q 'sendPayloadToElfldr(AUTOLOAD, "../../payloads/")' slopkit/p2jb.html \
@@ -114,7 +112,7 @@ if ! grep -q 'sendPayloadToElfldr(cfg.autoload, "../../payloads/"' slopkit/poops
     exit 1
 fi
 echo "slopkit: patch verification OK (autoload block + probe-path autoload,"
-echo "         exactQuery relaxation, hidden payload.elf + elf-launcher.elf + pldmgr.elf tiles, shared elfldr"
+echo "         exactQuery relaxation, hidden payload.elf + elf-launcher.elf tiles, shared elfldr"
 echo "         on poops + p2jb; STAGE5-DONE on-ready; settle 150ms; Sent single-flight)."
 
 

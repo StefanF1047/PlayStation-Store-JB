@@ -55,8 +55,5 @@ Outputs `WK_Store_V1.2.3.elf` and `WK_Store_Restore_V1.2.3.elf`.
 ## Credits
 
 - Relapse (PS5 WebKit / kernel chain)
-- [ps5-elfldr](https://github.com/itsPLK/ps5-elfldr) by itsPLK
-- [elf-launcher](https://github.com/X-F1REBALL-X/elf-launcher)
-- SQLite (Store tile database remap)
 
 Developed by X-F1REBALL-X.

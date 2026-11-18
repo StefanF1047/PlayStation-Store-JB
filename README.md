@@ -10,7 +10,7 @@ Turns the PS5 Store tile into WK Store: open the tile, start the jailbreak, and 
 
 **If WK Store is already installed, send Restore first.** That is required for a clean, stable install.
 
-1. Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`, then reboot and open elfldr again.
+1. Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`, then open elfldr again.
 2. Send [`WK_Store_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.4.elf) to elfldr on port `9021`.
 3. Wait for the install to finish. The console reboots on its own after Store finishes.
 4. Open the **Store** tile and press **Start Jailbreak**.
@@ -61,11 +61,10 @@ Always send payloads one at a time. Wait between Restore and Store.
 Restore is required before installing again. Skipping it can leave a bad or unstable install.
 
 1. Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`.
-2. Reboot the console (Restore does not reboot by itself).
-3. Open elfldr again on port `9021`.
-4. Send [`WK_Store_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.4.elf).
-5. Wait until install finishes. Store reboots the console by itself.
-6. Open the **Store** tile and press **Start Jailbreak**.
+2. Open elfldr again on port `9021`.
+3. Send [`WK_Store_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.4.elf).
+4. Wait until install finishes. Store reboots the console by itself.
+5. Open the **Store** tile and press **Start Jailbreak**.
 
 ### Fresh install (no WK Store yet)
 
@@ -75,7 +74,7 @@ Restore is required before installing again. Skipping it can leave a bad or unst
 
 ## Restore the PlayStation Store tile
 
-Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`, then reboot. Restore does not reboot on its own.
+Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`. No reboot after Restore.
 
 Use the same Restore before every Store upgrade when WK Store is already installed.
 

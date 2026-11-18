@@ -7,6 +7,7 @@ W.buildExploitUrls = function (autoloadName) {
     umtx2: 'umtx2/index.html?autoload=' + autoloadName + '&v=1',
     p2jb: 'slopkit/slopkit/p2jb.html?go=1&auto=1&production=1&log=debug&payload=1&autoload=' + autoloadName + '&v=final',
     relapse: 'relapse/index.html?autoload=' + autoloadName + '&v=1',
+    wobkot: 'wobkot/index.html?autoload=' + autoloadName + '&v=1',
     /* Must match poops.html PRODUCTION_QUERY / tools/gen_file_registry.py poops_iframe_url. */
     poops: 'slopkit/slopkit/poops.html?go=1&auto=1&production=1&trigger=netcontrol'
       + '&attempts=8&only=ps0_preflight,ps1_prepare,ps3_stage0,ps4_validate,'
@@ -25,6 +26,9 @@ W.fwSupports = function (chain, fw) {
   }
   if (chain === 'relapse') {
     return W.RELAPSE_FIRMWARES.indexOf(fw.str) !== -1 || (fw.num >= 7.0 && fw.num <= 13.60);
+  }
+  if (chain === 'wobkot') {
+    return (fw.num >= 6.0 && fw.num <= 13.60);
   }
   if (chain === 'p2jb') return W.P2JB_FIRMWARES.indexOf(fw.str) !== -1;
   return false;
@@ -78,14 +82,16 @@ W.recommendChain = function (fw) {
 };
 
 W.getChainPref = function () {
-  /* Relapse is the only selectable chain; any stored value (incl. legacy 'auto') coerces to relapse. */
   var v = W.lsGet(W.LS_CHAIN_KEY, 'relapse');
-  if (v !== 'relapse') { try { W.lsSet(W.LS_CHAIN_KEY, 'relapse'); } catch (e) {} }
-  return 'relapse';
+  if (v !== 'relapse' && v !== 'wobkot') {
+    try { W.lsSet(W.LS_CHAIN_KEY, 'relapse'); } catch (e) {}
+    return 'relapse';
+  }
+  return v;
 };
 
 W.setChainPref = function (v) {
-  v = 'relapse';
+  if (v !== 'relapse' && v !== 'wobkot') v = 'relapse';
   W.lsSet(W.LS_CHAIN_KEY, v);
 };
 
@@ -94,14 +100,14 @@ W.pickExploit = function () {
   var forced = null;
   try {
     var q = new URLSearchParams(window.location.search).get('force');
-    if (q === 'umtx2' || q === 'p2jb' || q === 'relapse' || q === 'poops') forced = q;
+    if (q === 'umtx2' || q === 'p2jb' || q === 'relapse' || q === 'poops' || q === 'wobkot') forced = q;
   } catch (e) {}
   if (forced) {
     W.uiLog('[force] using ' + forced + ' on firmware ' + (fw ? fw.str : 'unknown'), 'warning');
     return forced;
   }
   if (W.EXPLOIT_MODE === 'umtx2' || W.EXPLOIT_MODE === 'p2jb'
-    || W.EXPLOIT_MODE === 'relapse' || W.EXPLOIT_MODE === 'poops') {
+    || W.EXPLOIT_MODE === 'relapse' || W.EXPLOIT_MODE === 'poops' || W.EXPLOIT_MODE === 'wobkot') {
     W.uiLog('[force] using ' + W.EXPLOIT_MODE + ' on firmware ' + (fw ? fw.str : 'unknown'), 'warning');
     return W.EXPLOIT_MODE;
   }

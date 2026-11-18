@@ -199,7 +199,7 @@ export async function sendAutoloadElf(name, payloadDir, p, chain, log) {
 export async function loadOptionalPayloads(p, chain, log) {
   /* WK Store must not autoload unrelated payloads. Companion page
      install happens only via wkal-companions.elf / sendAutoloadElf. */
-  log("optional payloads disabled - WK installs Elf Launcher page only");
+  /* quiet: no install wording */
 }
 
 function patchShellcode(blob, symbols) {

@@ -85,10 +85,12 @@ W.startChain = function (skipElfSend) {
   W.state.UMTX2_URL = urls.umtx2;
   W.state.P2JB_URL = urls.p2jb;
   W.state.RELAPSE_URL = urls.relapse;
+  W.state.WOBKOT_URL = urls.wobkot;
   W.state.POOPS_URL = urls.poops;
   W.state.EXPLOIT_URL = picked === 'umtx2' ? urls.umtx2
     : picked === 'p2jb' ? urls.p2jb
     : picked === 'poops' ? urls.poops
+    : picked === 'wobkot' ? urls.wobkot
     : urls.relapse;
 
   W.uiLog('Chain: ' + picked + ' + elfldr', 'info');
@@ -131,6 +133,9 @@ W.startChain = function (skipElfSend) {
       sessionStorage.removeItem('on_load_autorun');
       sessionStorage.setItem('wkal_autoload', autoloadName);
       W.clearSlopkitState();
+    } else if (picked === 'wobkot') {
+      sessionStorage.removeItem('on_load_autorun');
+      sessionStorage.setItem('wkal_autoload', autoloadName);
     } else {
       sessionStorage.removeItem('on_load_autorun');
       sessionStorage.removeItem('wkal_autoload');
@@ -139,23 +144,39 @@ W.startChain = function (skipElfSend) {
 
   W.state.chainStarted = true;
   if (picked === 'p2jb') W.clearSlopkitState();
+  /* Wobkot spray ~8MB OOMs under Store iframe. Run top-level on slim page,
+     then tip EL / return to Store. Relapse stays in the hidden iframe. */
   try {
+    if (picked === 'wobkot') {
+      try { if (W.startElapsed) W.startElapsed(); } catch (ePe0) {}
+      if (W.bumpProgressFloor) W.bumpProgressFloor(5);
+      W.uiLog('Starting WebKit / Wobkot', 'info');
+      try { W.markTiming('iframe_request'); } catch (eR0) {}
+      location.assign(W.state.EXPLOIT_URL);
+      return;
+    }
     if (!W.els.exploit) throw new Error('missing #exploit iframe');
     try {
       W.els.exploit.onload = function () {
         try { W.markTiming('iframe_load'); } catch (eL) {}
       };
     } catch (eOn) {}
+    if (picked === 'wobkot') {
+      try {
+        /* Drop heavy Store UI bits so Wobkot spray has room in the shared process. */
+        var lw = document.getElementById('logWrapper');
+        if (lw) { lw.innerHTML = ''; lw.hidden = true; }
+        if (W.els && W.els.logContainer) W.els.logContainer.innerHTML = '';
+        try { if (globalThis.gc) globalThis.gc(); } catch (eG) {}
+      } catch (eFree) {}
+    }
     W.els.exploit.src = W.state.EXPLOIT_URL;
     try { W.markTiming('iframe_request'); } catch (eR) {}
-    /* Start the clock at iframe request so a fast fail is not stuck at 0.00s.
-       Starting WebKit may later rebase elapsedStart to the Relapse line stamp. */
     try { if (W.startElapsed) W.startElapsed(); } catch (ePe) {}
-    /* Real milestone: exploit document requested (quiet UI has no fake creep). */
     if (W.bumpProgressFloor) W.bumpProgressFloor(5);
-    W.uiLog('Starting WebKit / Relapse', 'info');
+    W.uiLog('Starting WebKit / ' + (picked === 'wobkot' ? 'Wobkot' : 'Relapse') + ' (iframe)', 'info');
   } catch (e2) {
-    W.uiLog('Failed to start exploit iframe: ' + (e2 && e2.message ? e2.message : e2), 'error');
+    W.uiLog('Failed to start exploit: ' + (e2 && e2.message ? e2.message : e2), 'error');
     W.finishProgressFail(W.t('jailbreakFail'));
     return;
   }
@@ -294,5 +315,38 @@ window.addEventListener('load', function () {
     W.uiLog('[boot] ui ready in ' + (Date.now() - t0) + 'ms; AppCache status=' + st
       + (st === 1 ? ' (IDLE/cached)' : ''), 'info');
   } catch (e) {}
+
+  try {
+    if (W.maybeResumeAfterWobkot && W.maybeResumeAfterWobkot()) return;
+  } catch (ePost) {}
 });
+
+/* After Wobkot top-level return: resume Elf Launcher tip like Relapse. */
+W.maybeResumeAfterWobkot = function () {
+  try {
+    var q = new URLSearchParams(location.search);
+    if (q.get('postjb') !== '1') return false;
+  } catch (e0) { return false; }
+  try {
+    var u = new URL(location.href);
+    u.searchParams.delete('postjb');
+    history.replaceState({}, '', u.pathname + (u.search || '') + (u.hash || ''));
+  } catch (e1) {}
+  W.state.alreadyJailbroken = true;
+  W.state.jbSuccessLogged = true;
+  W.state.elInstalledFirst = true;
+  try { if (W.elboot) W.elboot._sent = false; } catch (eSent0) {}
+  W.state.launcherHttpOpenStarted = false;
+  try {
+    var go = document.getElementById('startJailbreak');
+    if (go) { go.disabled = true; go.textContent = W.t('alreadyJailbroken') || 'Already jailbroken'; }
+  } catch (e2) {}
+  try { if (W.finishProgressSuccess) W.finishProgressSuccess(W.t('jailbreakSuccess') || 'Done'); } catch (e3) {}
+  try { W.uiLog('Wobkot done', 'success'); } catch (e4) {}
+  setTimeout(function () {
+    try { if (W.launcher && W.launcher.openCompanionPage) W.launcher.openCompanionPage(); } catch (e5) {}
+  }, 100);
+  return true;
+};
+
 })(typeof window !== 'undefined' ? window : this);

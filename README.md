@@ -1,60 +1,31 @@
-<img src="docs/img/banner-store.png" alt="WK Store">
+# WK Store
 
-Turns the PS5 Store tile into WK Store: open the tile, start the jailbreak, and Elf Launcher opens when it finishes.
+PS5 jailbreak Store tile with Relapse and Wobkot.
 
-## Quick start
+## Chains
 
-1. Send [`WK_Store_V1.2.3.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.3.elf) to elfldr on port `9021`.
-2. Wait for the install to finish, then reboot.
-3. Open the **Store** tile and press **Start Jailbreak**.
+- **Relapse** - 7.00 to 13.60
+- **Wobkot** (new in 1.2.4) - offsets for:
+  - 6.00, 6.02
+  - 7.00, 7.01, 7.20, 7.40, 7.60
+  - 8.00, 8.20, 8.40, 8.60
+  - 9.00, 9.20, 9.40, 9.60
+  - 10.00, 10.20, 10.60
+  - 11.00, 11.40, 11.60
+  - 12.00, 12.20, 12.40, 12.60
+  - 13.00, 13.20, 13.40, 13.60
 
-## Features
+Wobkot jailbreak is about 0.6s on a good run. Stable and fast.
 
-- Replaces the Store tile with WK Store.
-- Relapse jailbreak from the tile, then Elf Launcher opens by itself.
-- Works offline after install.
-- Bundled Elf Launcher 2.1.6.
-- A separate Restore ELF puts the original PlayStation Store tile back.
+## Install
 
-## Gallery
+Send Restore, then Store, one at a time over elfldr `:9021`.
+The Store tile reboots itself after install finishes.
 
-<p><img src="docs/img/home-123.png" alt="WK Store home" width="640"></p>
-<p><img src="docs/img/install-123.png" alt="WK Store install" width="640"></p>
+## Build
 
-## Requirements
+See the Makefile targets `store` and `restore`. Needs the Prospero SDK.
 
-- PS5 firmware 7.00-13.60 (Relapse).
-- elfldr listening on port `9021`.
+## Release
 
-## Installation
-
-If an older WK Store is already installed, send Restore first, reboot, then install 1.2.3.
-
-1. Send [`WK_Store_V1.2.3.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.3.elf) to elfldr on port `9021`.
-2. Wait until install finishes, then reboot.
-3. Open the **Store** tile and press **Start Jailbreak**.
-
-## Restore the PlayStation Store tile
-
-Send [`WK_Store_Restore_V1.2.3.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.3.elf) to elfldr on port `9021`, then reboot.
-
-## Building from source
-
-Needs the [PS5 payload SDK](https://github.com/ps5-payload-dev/sdk) with libmicrohttpd.
-
-```bash
-make store SDK=/path/to/ps5-payload-sdk
-make restore SDK=/path/to/ps5-payload-sdk
-```
-
-Outputs `WK_Store_V1.2.3.elf` and `WK_Store_Restore_V1.2.3.elf`.
-
-## License
-
-[GNU GPL v3](LICENSE).
-
-## Credits
-
-- Relapse (PS5 WebKit / kernel chain)
-
-Developed by X-F1REBALL-X.
+Current release: **1.2.4**

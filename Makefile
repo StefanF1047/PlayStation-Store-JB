@@ -86,8 +86,10 @@ $(FILE_REGISTRY_H) $(FILE_REGISTRY_C): $(FILE_REGISTRY_STAMP)
 # the binaries are already present and verified, so offline rebuilds still work.
 .PHONY: payload-deps
 payload-deps:
-	@echo "Fetching shared elfldr + Payload Manager + Elf Launcher tip payloads..."
-	./tools/download_deps.sh
+	@echo "Using already-staged shared payloads (local wobkot build)"
+	@test -f frontend/autoloader/shared/elfldr-ps5.elf
+	@test -f frontend/autoloader/payloads/payload.elf
+	@test -f frontend/autoloader/payloads/elf-launcher.elf
 
 $(FILE_REGISTRY_STAMP): $(FRONTEND_FILES) version icons payload-deps companions
 	@echo "Staging frontend into $(FRONTEND_STAGE)/..."
@@ -131,7 +133,8 @@ COMPANIONS_ELF := frontend/autoloader/payloads/wkal-companions.elf
 COMPANIONS_SRCS := src/companions_main.c src/app_installer.c src/notification.c src/log.c
 
 .PHONY: companions
-companions: $(COMPANIONS_ELF)
+companions:
+	@test -f $(COMPANIONS_ELF) || (echo missing companions; exit 1)
 
 # Companions only need install/notify libs - not libmicrohttpd (installer HTTP).
 COMPANIONS_LIBS := -L$(TARGET)/lib -lpthread 	-lSceNetCtl -lSceUserService -lSceSystemService -lSceAppInstUtil
@@ -164,7 +167,7 @@ STORE_SRCS  := $(STORE_DIR)/store_remap.c $(STORE_DIR)/tile_edit.c \
 SQLITE_SRC  := $(STORE_DIR)/third_party/sqlite3.c
 SQLITE_FLAGS := -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION \
                 -DSQLITE_OMIT_WAL -DSQLITE_DEFAULT_MEMSTATUS=0 -w
-STORE_VERSION := 1.2.3
+STORE_VERSION := 1.2.4
 STORE_ELF   := WK_Store_V$(STORE_VERSION).elf
 STORE_CFLAGS := $(CFLAGS) -DIGNIKEY_STORE -DSTORE_VERSION='"$(STORE_VERSION)"' -I$(STORE_DIR) -I$(STORE_GEN) \
                 -I$(STORE_DIR)/third_party
@@ -206,7 +209,7 @@ $(STORE_ELF): $(FILE_REGISTRY_H) $(FILE_REGISTRY_C) $(SRCS) $(STORE_SRCS) \
 	$(STRIP) $@
 
 # Full Store restore: undoes NPXS40047 remap (backup or built-in stock).
-# Send to elfldr :9021, then reboot. Not linked into the Store installer ELF.
+# Send to elfldr :9021 (no auto-reboot). Not linked into the Store installer ELF.
 RESTORE_ELF := WK_Store_Restore_V$(STORE_VERSION).elf
 .PHONY: restore
 restore: $(RESTORE_ELF)

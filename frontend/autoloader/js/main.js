@@ -75,7 +75,7 @@ W.startChain = function (skipElfSend) {
     W.els.detectChip.className = 'chip ok';
   }
 
-  /* Bootstrap only the installed EL executable after JB. Never run a WK payload queue. */
+  /* Bootstrap only the installed EL executable after JB. Never run a payload queue. */
   W.state.elInstalledFirst = !skipElfSend && !W.state.forceAutoloadName && !W.state.elfHttpAlreadyUp
     && !!(W.elboot && W.elboot.installedFirstOk(picked));
   /* Out-of-chain tip: never put tip/EL in the Relapse chain (wkal-skip). */
@@ -207,14 +207,14 @@ W.start = function () {
 
   if (W.state.pendingSelfUpdate || W.state.updateOnlyMode) {
     W.state.updateOnlyMode = true;
-    /* Probe :1000 / force elf-launcher.elf for WK install. */
+    /* Probe :1000 / force elf-launcher.elf for the update install. */
     W.launcher.probeElfLauncherHttp(function (up) {
       W.state.elfHttpAlreadyUp = !!up;
       if (up) {
-        W.uiLog('[update] :1000 up - jailbreak only, WK via Elf Launcher', 'info');
+        W.uiLog('[update] :1000 up - jailbreak only, update via Elf Launcher', 'info');
         W.startChain(true);
       } else {
-        W.uiLog('[update] :1000 down - send elf-launcher.elf so it can install WK', 'info');
+        W.uiLog('[update] :1000 down - send elf-launcher.elf so it can install the update', 'info');
         W.state.forceAutoloadName = 'elf-launcher.elf';
         W.startChain(false);
       }

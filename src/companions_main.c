@@ -1,5 +1,5 @@
 /*
- * Post-jailbreak companion installer for WK Store.
+ * Post-jailbreak companion installer.
  *
  * Sent to elfldr after JB. Installs the Elf Launcher homescreen page
  * only when missing, then exits. Does not start the HTTP server and does

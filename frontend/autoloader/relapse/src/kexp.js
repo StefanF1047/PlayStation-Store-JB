@@ -186,7 +186,7 @@ export async function sendAutoloadElf(name, payloadDir, p, chain, log) {
   const say = typeof log === "function" ? log : () => {};
   if (!name) throw new Error("autoload: empty payload name");
   payloadDir = payloadDir || "../payloads/";
-  /* Both home pages are installed by the WK installer, only when missing.
+  /* Both home pages are installed by the installer, only when missing.
      elfldr accepts one ELF, so this send is only the launcher you picked. */
   say("autoload: mapping " + name + " from " + payloadDir);
   const payload = await mapElf(name, p, chain, payloadDir);
@@ -197,8 +197,8 @@ export async function sendAutoloadElf(name, payloadDir, p, chain, log) {
 }
 
 export async function loadOptionalPayloads(p, chain, log) {
-  /* WK Store must not autoload unrelated payloads. Companion page
-     install happens only via wkal-companions.elf / sendAutoloadElf. */
+  /* The app must not autoload unrelated payloads. Companion page
+     install happens only via the companions ELF / sendAutoloadElf. */
   /* quiet: no install wording */
 }
 

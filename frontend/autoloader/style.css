@@ -1,4 +1,4 @@
-/* WK Store - layout B (Elf Launcher pearl theme + 5 themes) */
+/* Layout B (Elf Launcher pearl theme + 5 themes) */
 html{font-synthesis:none}
 :root{--bg:#f7f4ee;--void:#efe9dc;--deck:#fffdf9;--card:#fffdf8;--card2:#f4efe5;--edge:#e5ddcd;--edge2:#cfc2ab;
 --ink:#231c14;--ink2:#463b2d;--mute:#665a49;--pri:#ea580c;--pri2:#f59e0b;--rose:#f59e0b;--mint:#047857;--amber:#b45309;--bad:#b91c1c;--onp:#fff;
@@ -120,10 +120,7 @@ body.fail #failMsg{display:block}
 #logContainer .line.error{color:var(--bad)}
 #logContainer .line.success{color:var(--mint)}
 #logContainer .line.warning{color:var(--amber)}
-#footer{margin-top:auto;padding-top:1rem;text-align:center;color:var(--mute);font-size:.85rem;font-weight:700;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;gap:.75rem;-webkit-flex-wrap:wrap;flex-wrap:wrap}
-.footver{font-size:.78rem;font-weight:700;opacity:.75;letter-spacing:.04em;font-variant-numeric:tabular-nums}
 .ver{opacity:.9}
-#footer a{color:var(--ink);text-decoration:none}
 /* Toast: centered under home column (left of Options rail), below card — not over Start */
 #toast{display:none;position:fixed;z-index:95;left:calc((100vw - 23rem) / 2);right:auto;top:auto;bottom:1.35rem;-webkit-transform:translateX(-50%);transform:translateX(-50%);width:min(34rem,calc(100vw - 28rem));max-width:calc(100vw - 28rem);padding:.7rem .85rem .7rem 1rem;-webkit-align-items:center;align-items:center;background:var(--deck);border:1px solid var(--edge2);border-radius:var(--r);box-shadow:0 1rem 2.4rem rgba(60,45,25,.22);pointer-events:auto}
 #toast.show{display:-webkit-box;display:-webkit-flex;display:flex}
@@ -357,7 +354,6 @@ body{background:#fbf6ee}
 #startDelay .opt{min-width:0}
 .vh{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
 #autoStartRow{margin-bottom:.55rem}
-#loader #titleMsg .wk,#homeCard .home-title .wk{color:#111!important;-webkit-text-fill-color:#111!important;background:none!important}
 .hrow .hmeta{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;gap:.08rem;min-width:0}
 .hrow .hdate{margin-left:0;display:block;font-weight:600;color:var(--mute);font-variant-numeric:tabular-nums}
 .hrow .hchain{font-weight:700}
@@ -384,12 +380,9 @@ html,body{height:100%}
 #homeInfo{margin:.6rem auto 0;padding:.75rem 1.4rem .7rem;width:min(720px,100%)}
 #homeInfo .label{margin:0 0 .4rem}
 #homeInfo .hi-chip{padding:.4rem .9rem}
-#footer{position:fixed;left:0;right:23rem;bottom:.7rem;margin:0;padding:0;z-index:2;text-align:center;-webkit-justify-content:center;justify-content:center;font-size:.85rem;pointer-events:none}
-#footer a{pointer-events:auto}
 .wrap{padding-bottom:2.6rem}
 #splash:not([hidden]){-webkit-box-flex:1;-webkit-flex:1 0 auto;flex:1 0 auto;display:-webkit-box;display:-webkit-flex;display:flex;-webkit-flex-direction:column;flex-direction:column;-webkit-justify-content:center;justify-content:center}
 #splash .main{padding-bottom:.5rem}
-#footer{gap:0}
 #homeInfo .hi-br{-webkit-flex-basis:100%;flex-basis:100%;width:100%;height:0}
 .ver-pill{position:fixed;top:1rem;right:24.2rem;z-index:30;padding:.32rem .9rem;border-radius:999px;background:#fff;border:2px solid #f6b98a;color:#f26b1d;font-size:.9rem;font-weight:800;letter-spacing:.02em;box-shadow:0 4px 12px rgba(242,107,29,.12)}
 
@@ -411,7 +404,6 @@ html,body{height:100%}
 }
 #loader .home-deco{text-align:center;margin-bottom:.55rem}
 #loader .home-title{font-size:3.5rem;font-weight:900;letter-spacing:.01em;line-height:1.05;color:#f26b1d}
-#loader .home-title .wk{color:#111}
 #loader .home-div{display:-webkit-box;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;gap:.5rem;margin:.4rem auto .55rem;color:#f26b1d}
 #loader .home-div i{display:block;width:120px;height:2px;background:#f6b98a;border-radius:2px}
 #loader .ring{display:none!important}

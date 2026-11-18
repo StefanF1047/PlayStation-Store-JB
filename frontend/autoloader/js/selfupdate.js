@@ -4,9 +4,13 @@ var W = g.WKAL = g.WKAL || {};
 W.selfupd = W.selfupd || {};
 
   var SELFUPD_DISMISS_KEY = 'wkal-selfupd-dismiss';
-  var SELFUPD_GH_LATEST = 'https://api.github.com/repos/X-F1REBALL-X/wk-store/releases/latest';
-  var SELFUPD_RELEASES_URL = 'https://github.com/X-F1REBALL-X/wk-store/releases/latest';
-  var SELFUPD_ASSET = 'WK_Store_V1.3.0.elf';
+  /* Set "repo" in branding.json ("owner/repo") to enable in-app update
+     checks. Empty means the check is skipped entirely. */
+  var SELFUPD_REPO = '[[BRAND_REPO_PLACEHOLDER]]';
+  var SELFUPD_ELF_PREFIX = '[[BRAND_ELF_PREFIX_PLACEHOLDER]]';
+  var SELFUPD_GH_LATEST = SELFUPD_REPO ? 'https://api.github.com/repos/' + SELFUPD_REPO + '/releases/latest' : '';
+  var SELFUPD_RELEASES_URL = SELFUPD_REPO ? 'https://github.com/' + SELFUPD_REPO + '/releases/latest' : '';
+  var SELFUPD_ASSET = SELFUPD_ELF_PREFIX + '_V1.3.0.elf';
   /* state in W.state */
   
   
@@ -127,9 +131,12 @@ W.selfupd = W.selfupd || {};
   /* GitHub Releases latest -> banner when newer than the running UI. */
   function checkSelfUpdate() {
     var cur = currentAppVersion();
+    if (!SELFUPD_GH_LATEST) return;
     if (!cur || W.state.chainStarted) return;
     fetchJsonText(SELFUPD_GH_LATEST, function (err, text) {
       var j, tag, assets, i, a, url = '', dismissed = '', asha = '', asize = 0;
+      var assetRe = new RegExp(
+        '^' + SELFUPD_ELF_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '.*\\.elf$', 'i');
       if (err || W.state.chainStarted) return;
       try { j = JSON.parse(text); } catch (e) { return; }
       if (!j || j.draft || j.prerelease) return;
@@ -143,7 +150,7 @@ W.selfupd = W.selfupd || {};
       if (!url) {
         for (i = 0; i < assets.length; i++) {
           a = assets[i] || {};
-          if (/^wk-store.*\.elf$/i.test(String(a.name || ''))) { url = a.browser_download_url || ''; asha = String(a.digest || '').replace(/^sha256:/i, ''); asize = a.size || 0; break; }
+          if (assetRe.test(String(a.name || ''))) { url = a.browser_download_url || ''; asha = String(a.digest || '').replace(/^sha256:/i, ''); asize = a.size || 0; break; }
         }
       }
       try { dismissed = localStorage.getItem(SELFUPD_DISMISS_KEY) || ''; } catch (e2) { }
@@ -172,7 +179,7 @@ W.selfupd = W.selfupd || {};
   /* Reliable path: Elf Launcher :1000 downloads the release asset natively
      (follows GitHub redirects, checks sha256) then pushes raw bytes to
      elfldr via /run. Real errors are reported; elfldr ?uri= is fallback only. */
-  var SELFUPD_DISK_NAME = 'WK_Store_V1.3.0.elf';
+  var SELFUPD_DISK_NAME = SELFUPD_ELF_PREFIX + '_V1.3.0.elf';
   function waitForElfLauncher(maxTries, cb) {
     var n = 0;
     function tick() {
@@ -192,7 +199,7 @@ W.selfupd = W.selfupd || {};
       '&sha256=' + encodeURIComponent(info.sha256) +
       (info.size ? '&size=' + encodeURIComponent(String(info.size | 0)) : '') +
       '&t=' + Date.now();
-    W.uiLog('[update] Elf Launcher :1000 downloading WK ' + info.version + ' ...', 'info');
+    W.uiLog('[update] Elf Launcher :1000 downloading ' + info.version + ' ...', 'info');
     fetch(q, { cache: 'no-store' }).then(function (r) {
       return r.text().then(function (txt) {
         var j = null;
@@ -287,7 +294,7 @@ W.selfupd = W.selfupd || {};
     ensureSelfUpdateBannerVisible();
     if (btn) btn.disabled = true;
     selfUpdateMessage(W.t('selfUpdating', { ver: info.version }));
-    W.uiLog('[update] applying ' + info.version + (reason ? ' (' + reason + ')' : '') + ' - WK ELF only', 'info');
+    W.uiLog('[update] applying ' + info.version + (reason ? ' (' + reason + ')' : '') + ' - ELF only', 'info');
     function legacy() {
       W.uiLog('[update] fallback: elfldr ?uri= (no :1000 / no sha256)', 'warning');
       W.launcher.sendUrlToElfldr(info.url, function () {
@@ -313,7 +320,7 @@ W.selfupd = W.selfupd || {};
     function failNoLauncher() {
       if (btn) btn.disabled = false;
       W.state.selfUpdateSent = false;
-      W.uiLog('[update] Elf Launcher :1000 did not start - cannot download WK', 'error');
+      W.uiLog('[update] Elf Launcher :1000 did not start - cannot download the update', 'error');
       selfUpdateMessage(W.t('selfUpdateFail', { msg: 'Elf Launcher :1000 not running' }));
     }
     /* Chain already sent elf-launcher.elf this session: just wait for :1000. */
@@ -356,14 +363,14 @@ W.selfupd = W.selfupd || {};
       W.state.selfUpdateSent = false;
       ensureSelfUpdateBannerVisible();
       if (btn) btn.disabled = true;
-      /* Already jailbroken this session: send WK only. */
+      /* Already jailbroken this session: send the update only. */
       if (W.state.finished) {
         applySelfUpdateNow('manual');
         return;
       }
       /* Start JB with wkal-skip (no tip). Apply runs after elfldr ready. */
       selfUpdateMessage(W.t('selfUpdateStartJb', { ver: info.version }));
-      W.uiLog('[update] starting jailbreak for WK ' + info.version + ' install only', 'info');
+      W.uiLog('[update] starting jailbreak for v' + info.version + ' install only', 'info');
       if (!W.state.chainStarted) {
         try {
           var go = document.getElementById('startJailbreak');

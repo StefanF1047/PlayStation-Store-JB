@@ -1,8 +1,11 @@
 #pragma once
 
-/* Base version of the WK Store (WKAL) content.
+/* Product branding (name/tagline/repo) - generated from branding.json. */
+#include "branding.h"
+
+/* Base version of the app content.
  * Bump this when the autoloader frontend changes - it triggers the app-cache
- * update and also marks the matching WKALI installer build. */
+ * update and also marks the matching installer build. */
 #define WKAL_VERSION "1.2.3"
 
 /* Full build version (stable: <base>, dev: <base>-dev-<hash|timestamp>),
@@ -13,7 +16,7 @@
  * homebrew HTTP servers (must match the deeplink in assets/param.json.template) */
 #define WKALI_PORT 1022
 
-/* Title ID of the installed homescreen app ("WK Store") */
+/* Title ID of the installed homescreen app (BRAND_NAME) */
 #define WKAL_TITLE_ID "SLKT00001"
 
 /* Process identity - used to kill stale installer instances on startup */

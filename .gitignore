@@ -12,6 +12,7 @@ include/file_registry.h
 include/file_registry.c
 include/.file_registry.stamp
 include/wkali_version.h
+include/branding.h
 assets/param.json
 assets/icon0.png
 assets/icon.ico

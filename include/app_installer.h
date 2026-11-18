@@ -1,9 +1,9 @@
 #pragma once
 
-/* 1 when the WK Store homescreen page is already on disk. */
+/* 1 when the homescreen page is already on disk. */
 int wkali_page_installed(void);
 
-/* Install (or force-refresh) the WK Store homescreen page: always rewrite
+/* Install (or force-refresh) the homescreen page: always rewrite
  * param/icon and call install again when already present. */
 int wkali_install_app(void);
 

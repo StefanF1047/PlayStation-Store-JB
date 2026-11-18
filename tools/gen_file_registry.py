@@ -16,6 +16,7 @@ import re
 import sys
 import zlib
 
+from branding import apply_tokens, load as load_branding
 from gen_version import get_version_info
 
 CONTENT_TYPES = {
@@ -149,6 +150,13 @@ def apply_store_version_placeholder(data):
     HTML labels and JS cannot drift from the ELF name."""
     ver = os.environ.get("STORE_VERSION", "dev").strip() or "dev"
     return data.replace(STORE_VERSION_PLACEHOLDER, ver.encode("utf-8"))
+
+
+def apply_brand_placeholder(data):
+    """Replace the [[BRAND_*_PLACEHOLDER]] tokens with branding.json values.
+    Applied globally so titles, wordmarks and translations cannot drift from
+    the product name."""
+    return apply_tokens(data)
 
 
 def apply_exploit_mode_placeholder(path, data, app_dir):
@@ -350,14 +358,14 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
     lines = [
         "CACHE MANIFEST",
         # No wall-clock: same STORE_VERSION + files => same manifest bytes.
-        f"# WK Store v{version} store-v{os.environ.get('STORE_VERSION', 'dev')} ignikey-v34 by X-F1REBALL-X - "
+        f"# {load_branding()['name']} v{version} store-v{os.environ.get('STORE_VERSION', 'dev')} - "
         "written by tools/gen_file_registry.py, do not edit.",
         "",
         "CACHE:",
     ]
     # Installer HTML must always come from the network so a stale AppCache
-    # master entry (stock WK Store with SOFT_CAP=99) cannot stick.
-    installer_network = {"/index.html", "/ignikey.html", "/"}
+    # master entry (stock copy with SOFT_CAP=99) cannot stick.
+    installer_network = {"/index.html", "/installer.html", "/"}
     cache_entries = [
         path for path, _ in files
         if path not in (pointer_path, marker_path)
@@ -522,6 +530,7 @@ def main():
             data = apply_pointer_placeholder(path, data, version)
             data = apply_exploit_mode_placeholder(path, data, app_dir)
             data = apply_store_version_placeholder(data)
+            data = apply_brand_placeholder(data)
             stored, compressed = compress_entry(data)
             emit_c_array(out, f"file_{i}", stored)
             out.write("\n")

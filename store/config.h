@@ -1,11 +1,21 @@
 #pragma once
 
-/* Store tile remapper for fresh install: open local WK Store. */
+/* Store tile remapper for fresh install: open the local app. */
+
+#include "branding.h"
 
 #define TILE_ID     "NPXS40047"
 
+/* 1 = keep the console's own hover/detail art ("stock"):
+ *     no pic0.png/pic1.png are written, and the DB keeps the stock pic values.
+ * 0 = embed our pic0.png/pic1.png and point the tile at them.
+ * Override at build time:  make store STOCK_HOVER_ART=0  */
+#ifndef STOCK_HOVER_ART
+#define STOCK_HOVER_ART 1
+#endif
+
 #ifndef TILE_LABEL
-#define TILE_LABEL  "WK Store"
+#define TILE_LABEL  BRAND_NAME
 #endif
 
 #ifndef TILE_URL
@@ -25,15 +35,28 @@
 #define TILE_PIC0_FILE   TILE_ASSET_DIR "/pic0.png"
 #define TILE_PIC1_FILE   TILE_ASSET_DIR "/pic1.png"
 
-#define TILE_ASSET_REF   TILE_ASSET_FILE "?v=37"
-#define TILE_PIC0_REF    TILE_PIC0_FILE "?v=37"
-#define TILE_PIC1_REF    TILE_PIC1_FILE "?v=37"
+#define TILE_ASSET_REF   TILE_ASSET_FILE "?v=38"
+#define TILE_PIC0_REF    TILE_PIC0_FILE "?v=38"
+#define TILE_PIC1_REF    TILE_PIC1_FILE "?v=38"
 
 /* Shell path flags so focus pic0 is treated as present (Explore / fpkg_db.c). */
 #define TILE_PIC0_PATH_FLAG        (-6917529027641081856LL)
 #define TILE_PIC0_PATH_TS          315532800
 #define TILE_PIC0_PATH_FLAG_STOCK  0LL
 #define TILE_PIC0_PATH_TS_STOCK    0
+
+/* Values written into the DB for the focused-tile art. */
+#if STOCK_HOVER_ART
+#define TILE_PIC0_WRITE_FLAG  TILE_PIC0_PATH_FLAG_STOCK
+#define TILE_PIC0_WRITE_TS    TILE_PIC0_PATH_TS_STOCK
+#define TILE_PIC0_WRITE_FLAG_SQL "0"
+#define TILE_PIC0_WRITE_TS_SQL   "0"
+#else
+#define TILE_PIC0_WRITE_FLAG  TILE_PIC0_PATH_FLAG
+#define TILE_PIC0_WRITE_TS    TILE_PIC0_PATH_TS
+#define TILE_PIC0_WRITE_FLAG_SQL "-6917529027641081856"
+#define TILE_PIC0_WRITE_TS_SQL   "315532800"
+#endif
 
 #ifndef DB_APP_PATH
 #define DB_APP_PATH      "/system_data/priv/mms/app.db"

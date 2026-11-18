@@ -106,24 +106,9 @@ W.pickExploit = function () {
     W.uiLog('[force] using ' + forced + ' on firmware ' + (fw ? fw.str : 'unknown'), 'warning');
     return forced;
   }
-  if (W.EXPLOIT_MODE === 'umtx2' || W.EXPLOIT_MODE === 'p2jb'
-    || W.EXPLOIT_MODE === 'relapse' || W.EXPLOIT_MODE === 'poops' || W.EXPLOIT_MODE === 'wobkot') {
-    W.uiLog('[force] using ' + W.EXPLOIT_MODE + ' on firmware ' + (fw ? fw.str : 'unknown'), 'warning');
-    return W.EXPLOIT_MODE;
-  }
-  if (!fw) {
-    W.uiLog('[ERROR] Not a PlayStation 5 browser.', 'error');
-    return null;
-  }
-  var pref = W.getChainPref();
-  if (pref !== 'auto') {
-    if (W.fwSupports(pref, fw)) return pref;
-    W.uiLog('Saved chain ' + pref + ' not for FW ' + fw.str + ', using firmware default', 'warning');
-  }
-  var rec = W.recommendChain(fw);
-  if (rec) return rec;
-  W.uiLog('Unsupported firmware ' + fw.str, 'error');
-  return null;
+  /* Terminal build: always Relapse. ?force=... still overrides for debugging. */
+  W.uiLog('[chain] relapse (forced)', 'info');
+  return 'relapse';
 };
 
 /* Preload chain entry HTML only (no exploit run). Speeds first paint of iframe. */

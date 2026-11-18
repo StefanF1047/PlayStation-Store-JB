@@ -19,6 +19,7 @@ import sys
 import tempfile
 import zipfile
 
+from branding import apply_tokens, load as load_branding
 from gen_version import get_version_info
 
 CHUNK = 76
@@ -28,12 +29,19 @@ VERSION_MARKER = "# [[VERSION_PLACEHOLDER]]"
 VERSION_PLACEHOLDER = VERSION_MARKER + '\nVERSION = "dev"'
 BUILD_TIME_MARKER = "# [[BUILD_TIME_PLACEHOLDER]]"
 BUILD_TIME_PLACEHOLDER = BUILD_TIME_MARKER + '\nBUILD_TIME = "dev"'
+BRAND_NAME_MARKER = "# [[BRAND_NAME_PLACEHOLDER]]"
+BRAND_NAME_PLACEHOLDER = BRAND_NAME_MARKER + '\nBRAND_NAME = "Store"'
+BRAND_REPO_MARKER = "# [[BRAND_REPO_PLACEHOLDER]]"
+BRAND_REPO_PLACEHOLDER = BRAND_REPO_MARKER + '\nBRAND_REPO = ""'
 CERT_MARKER = "# [[SSL_CERT_PLACEHOLDER]]"
 CERT_PLACEHOLDER = CERT_MARKER + '\nSSL_CERT_PEM = ""'
 KEY_MARKER = "# [[SSL_KEY_PLACEHOLDER]]"
 KEY_PLACEHOLDER = KEY_MARKER + '\nSSL_KEY_PEM = ""'
 VERSION_TOKEN = b"[[VERSION_PLACEHOLDER]]"
 BUILD_TIME_TOKEN = b"[[BUILD_TIME_PLACEHOLDER]]"
+
+# Text assets that get the [[BRAND_*]] tokens substituted before zipping.
+TEXT_EXTENSIONS = (".html", ".htm", ".js", ".css", ".json", ".svg", ".webmanifest")
 
 CERT_TARGET = "manuals.playstation.net"
 
@@ -108,24 +116,26 @@ def build_zip(frontend_dir, overrides_dir, version, build_time, payload_path=Non
 
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for rel in sorted(file_map.keys()):
+            ext = os.path.splitext(rel)[1].lower()
+            if ext not in TEXT_EXTENSIONS:
+                zf.write(file_map[rel], arcname=rel)
+                continue
+            # Text files: resolve the build-time tokens here so the embedded
+            # copy is byte-identical to what the ELF build serves.
+            with open(file_map[rel], "rb") as f:
+                data = f.read()
             if rel == "index.html":
                 # The autoloader carries version/build-time placeholders in its
                 # title - the PC host serves it at the docroot, so replace them here.
-                with open(file_map[rel], "rb") as f:
-                    data = f.read()
                 data = data.replace(VERSION_TOKEN, version.encode("utf-8"))
                 data = data.replace(BUILD_TIME_TOKEN, build_time.encode("utf-8"))
-                zf.writestr(rel, data)
             elif rel == "app.js":
                 # Build-time exploit override (auto | umtx2 | p2jb | relapse),
                 # from the FORCE_EXPLOIT env - same token as the ELF build.
-                with open(file_map[rel], "rb") as f:
-                    data = f.read()
                 mode = os.environ.get("FORCE_EXPLOIT", "auto")
                 data = data.replace(b"[[EXPLOIT_MODE]]", mode.encode("utf-8"))
-                zf.writestr(rel, data)
-            else:
-                zf.write(file_map[rel], arcname=rel)
+            data = apply_tokens(data)
+            zf.writestr(rel, data)
 
     return archive.getvalue(), file_map
 
@@ -159,6 +169,27 @@ def embed_payload(source, payload_b64):
     )
     replacement = MARKER + "\nEMBEDDED_ZIP_B64 = (\n" + chunks + "\n)"
     return source.replace(PLACEHOLDER, replacement)
+
+
+def embed_branding(source):
+    """Replace the branding placeholder blocks in the host script."""
+    brand = load_branding()
+    if BRAND_NAME_PLACEHOLDER not in source:
+        sys.exit(
+            "Error: '{}' placeholder not found in input script. "
+            "Rebuild pc-host/host.py first.".format(BRAND_NAME_MARKER)
+        )
+    if BRAND_REPO_PLACEHOLDER not in source:
+        sys.exit(
+            "Error: '{}' placeholder not found in input script. "
+            "Rebuild pc-host/host.py first.".format(BRAND_REPO_MARKER)
+        )
+    name = brand["name"].replace("\\", "\\\\").replace('"', '\\"')
+    repo = brand["repo"].replace("\\", "\\\\").replace('"', '\\"')
+    source = source.replace(
+        BRAND_NAME_PLACEHOLDER, BRAND_NAME_MARKER + f'\nBRAND_NAME = "{name}"')
+    return source.replace(
+        BRAND_REPO_PLACEHOLDER, BRAND_REPO_MARKER + f'\nBRAND_REPO = "{repo}"')
 
 
 def generate_server_cert():
@@ -245,6 +276,7 @@ def main(argv=None):
 
     built = embed_payload(source, payload_b64)
     built = embed_version(built, version, build_time)
+    built = embed_branding(built)
     cert_pem, key_pem = generate_server_cert()
     built = embed_server_cert(built, cert_pem, key_pem)
 
@@ -256,7 +288,7 @@ def main(argv=None):
 
     print(f"Embedded {len(file_map)} files (merged from {frontend_dir} and {overrides_dir})")
     print(f"  raw files:  {raw_size} bytes -> zip: {len(zip_data)} bytes -> base64: {len(payload_b64)} bytes")
-    print(f"  version:    v{version} by X-F1REBALL-X (built {build_time})")
+    print(f"  version:    v{version} (built {build_time})")
     print(f"Wrote {output_path} ({len(built)} bytes)")
     return 0
 

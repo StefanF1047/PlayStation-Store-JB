@@ -201,7 +201,7 @@ static int wipe_files_under(const char *path, int depth, appcache_log_fn log)
                 int k = rm_tree(sub);
                 n += k;
                 if (log)
-                    log("[WKALI] AppCache: removed dir %s (%d entries)\n", sub, k);
+                    log("[STORE] AppCache: removed dir %s (%d entries)\n", sub, k);
             } else if (depth < MAX_DEPTH) {
                 n += wipe_files_under(sub, depth + 1, log);
             }
@@ -209,10 +209,10 @@ static int wipe_files_under(const char *path, int depth, appcache_log_fn log)
             if (!unlink(sub)) {
                 n++;
                 if (log)
-                    log("[WKALI] AppCache: removed %s (%lld bytes)\n", sub,
+                    log("[STORE] AppCache: removed %s (%lld bytes)\n", sub,
                         (long long)st.st_size);
             } else if (log) {
-                log("[WKALI] AppCache: could not remove %s\n", sub);
+                log("[STORE] AppCache: could not remove %s\n", sub);
             }
         }
     }
@@ -240,7 +240,7 @@ static int wipe_store_origin_db(const char *db_path, appcache_log_fn log)
 
     if (sqlite3_open(db_path, &db) != SQLITE_OK) {
         if (log)
-            log("[WKALI] AppCache: cannot open %s\n", db_path);
+            log("[STORE] AppCache: cannot open %s\n", db_path);
         if (db)
             sqlite3_close(db);
         return -1;
@@ -249,7 +249,7 @@ static int wipe_store_origin_db(const char *db_path, appcache_log_fn log)
     if (sqlite3_prepare_v2(db,
             "SELECT id FROM CacheGroups LIMIT 1", -1, &st, NULL) != SQLITE_OK) {
         if (log)
-            log("[WKALI] AppCache: cannot read CacheGroups in %s: %s\n",
+            log("[STORE] AppCache: cannot read CacheGroups in %s: %s\n",
                 db_path, sqlite3_errmsg(db));
         sqlite3_close(db);
         return -1;
@@ -264,11 +264,11 @@ static int wipe_store_origin_db(const char *db_path, appcache_log_fn log)
     exec_sql(db, "PRAGMA locking_mode=EXCLUSIVE");
     exec_sql(db, "PRAGMA wal_checkpoint(TRUNCATE)");
     if (exec_sql(db, "PRAGMA journal_mode=DELETE") != 0 && log)
-        log("[WKALI] AppCache: journal_mode=DELETE failed (%s)\n",
+        log("[STORE] AppCache: journal_mode=DELETE failed (%s)\n",
             sqlite3_errmsg(db));
     if (exec_sql(db, "BEGIN IMMEDIATE") != 0) {
         if (log)
-            log("[WKALI] AppCache: db busy (%s), close the browser and retry\n",
+            log("[STORE] AppCache: db busy (%s), close the browser and retry\n",
                 sqlite3_errmsg(db));
         sqlite3_close(db);
         return -1;
@@ -348,7 +348,7 @@ static int wipe_store_origin_db(const char *db_path, appcache_log_fn log)
 
     if (exec_sql(db, "COMMIT") != 0) {
         if (log)
-            log("[WKALI] AppCache: commit failed (%s), nothing changed\n",
+            log("[STORE] AppCache: commit failed (%s), nothing changed\n",
                 sqlite3_errmsg(db));
         exec_sql(db, "ROLLBACK");
         sqlite3_close(db);
@@ -379,15 +379,15 @@ static int wipe_store_origin_db(const char *db_path, appcache_log_fn log)
             sqlite3_close(vdb);
         if (left != 0) {
             if (log)
-                log("[WKALI] AppCache: FAILED, Store group still present after delete (left=%d)\n",
+                log("[STORE] AppCache: FAILED, Store group still present after delete (left=%d)\n",
                     left);
             return -1;
         }
         if (log)
-            log("[WKALI] AppCache: verified, Store group gone\n");
+            log("[STORE] AppCache: verified, Store group gone\n");
     }
     if (log)
-        log("[WKALI] AppCache: selective wipe %s (groups=%d caches=%d)\n",
+        log("[STORE] AppCache: selective wipe %s (groups=%d caches=%d)\n",
             db_path, groups, caches);
     return groups + caches;
 }
@@ -404,7 +404,7 @@ static int backup_one_shell(const char *shell, const char *dest,
 
     if (mkdir_p(dest) != 0) {
         if (log)
-            log("[WKALI] AppCache: mkdir backup %s failed\n", dest);
+            log("[STORE] AppCache: mkdir backup %s failed\n", dest);
         return -1;
     }
     /* Clear previous backup contents so restore is exact. */
@@ -414,7 +414,7 @@ static int backup_one_shell(const char *shell, const char *dest,
 
     if (!find_db(shell, 0, db, sizeof(db))) {
         if (log)
-            log("[WKALI] AppCache: no ApplicationCache.db under %s\n", shell);
+            log("[STORE] AppCache: no ApplicationCache.db under %s\n", shell);
         return 0;
     }
 
@@ -471,7 +471,7 @@ static int backup_one_shell(const char *shell, const char *dest,
     }
 
     if (log)
-        log("[WKALI] AppCache: backed up %d entries to %s\n", n, dest);
+        log("[STORE] AppCache: backed up %d entries to %s\n", n, dest);
     return n;
 }
 
@@ -488,7 +488,7 @@ int appcache_backup_user(const char *userid, appcache_log_fn log)
     shell_path(shell, sizeof(shell), userid);
     if (stat(shell, &st) || !S_ISDIR(st.st_mode)) {
         if (log)
-            log("[WKALI] AppCache: no shell dir for user %s\n", userid);
+            log("[STORE] AppCache: no shell dir for user %s\n", userid);
         return 0;
     }
     backup_path(dest, sizeof(dest), userid);
@@ -513,7 +513,7 @@ int appcache_restore_user(const char *userid, appcache_log_fn log)
     backup_path(srcdir, sizeof(srcdir), userid);
     if (stat(srcdir, &st) || !S_ISDIR(st.st_mode)) {
         if (log)
-            log("[WKALI] AppCache: no backup for user %s\n", userid);
+            log("[STORE] AppCache: no backup for user %s\n", userid);
         return -1;
     }
     if (stat(shell, &st) || !S_ISDIR(st.st_mode)) {
@@ -556,7 +556,7 @@ int appcache_restore_user(const char *userid, appcache_log_fn log)
     }
     closedir(d);
     if (log)
-        log("[WKALI] AppCache: restored %d entries for user %s\n", n, userid);
+        log("[STORE] AppCache: restored %d entries for user %s\n", n, userid);
     return n;
 }
 
@@ -573,7 +573,7 @@ int appcache_clean_store_user(const char *userid, appcache_log_fn log)
     shell_path(shell, sizeof(shell), userid);
     if (stat(shell, &st) || !S_ISDIR(st.st_mode)) {
         if (log)
-            log("[WKALI] AppCache: skip missing user %s\n", userid);
+            log("[STORE] AppCache: skip missing user %s\n", userid);
         return 0;
     }
 
@@ -596,7 +596,7 @@ int appcache_clean_store_user(const char *userid, appcache_log_fn log)
             snprintf(side, sizeof(side), "%s-journal", db);
             unlink(side);
             if (log)
-                log("[WKALI] AppCache: store-origin clear done for %s\n",
+                log("[STORE] AppCache: store-origin clear done for %s\n",
                     userid);
             n += k;
         }
@@ -608,13 +608,13 @@ int appcache_clean_store_user(const char *userid, appcache_log_fn log)
     {
         int w = wipe_files_under(shell, 0, log);
         if (log)
-            log("[WKALI] AppCache: file sweep for %s removed %d entries\n",
+            log("[STORE] AppCache: file sweep for %s removed %d entries\n",
                 userid, w);
         n += w;
     }
 
     if (k < 0 && n == 0 && log)
-        log("[WKALI] AppCache: nothing cleared for %s\n", userid);
+        log("[STORE] AppCache: nothing cleared for %s\n", userid);
     return n;
 }
 
@@ -626,7 +626,7 @@ int appcache_clean_store_all_users(appcache_log_fn log)
 
     if (!d) {
         if (log)
-            log("[WKALI] AppCache: cannot open " HOME_DIR "\n");
+            log("[STORE] AppCache: cannot open " HOME_DIR "\n");
         return 0;
     }
     while ((e = readdir(d))) {
@@ -645,7 +645,7 @@ int appcache_clean_store_all_users(appcache_log_fn log)
     }
     closedir(d);
     if (log)
-        log("[WKALI] AppCache: %d user(s), %d entries cleared (store origin)\n",
+        log("[STORE] AppCache: %d user(s), %d entries cleared (store origin)\n",
             users, total);
     return total;
 }
@@ -669,7 +669,7 @@ int appcache_manifest_needs_refresh(const char *userid, const char *ver,
     fp = fopen(path, "rb");
     if (!fp) {
         if (log)
-            log("[WKALI] AppCache: no manifest_ver for %s -> refresh\n",
+            log("[STORE] AppCache: no manifest_ver for %s -> refresh\n",
                 userid);
         return 1;
     }
@@ -681,12 +681,12 @@ int appcache_manifest_needs_refresh(const char *userid, const char *ver,
         buf[--n] = '\0';
     if (strcmp(buf, ver) != 0) {
         if (log)
-            log("[WKALI] AppCache: manifest_ver '%s' != '%s' for %s\n",
+            log("[STORE] AppCache: manifest_ver '%s' != '%s' for %s\n",
                 buf, ver, userid);
         return 1;
     }
     if (log)
-        log("[WKALI] AppCache: manifest_ver matches %s for %s, keep cache\n",
+        log("[STORE] AppCache: manifest_ver matches %s for %s, keep cache\n",
             ver, userid);
     return 0;
 }
@@ -712,7 +712,7 @@ int appcache_manifest_write_version(const char *userid, const char *ver,
     fprintf(fp, "%s\n", ver);
     fclose(fp);
     if (log)
-        log("[WKALI] AppCache: wrote manifest_ver %s for %s\n", ver, userid);
+        log("[STORE] AppCache: wrote manifest_ver %s for %s\n", ver, userid);
     return 0;
 }
 
@@ -732,7 +732,7 @@ int appcache_backup_user_to(const char *userid, const char *dest,
     /* dest must be new: refuse to overwrite an existing folder. */
     if (stat(dest, &st) == 0) {
         if (log)
-            log("[WKCLEAN] backup dest %s exists, refusing\n", dest);
+            log("[CLEAN] backup dest %s exists, refusing\n", dest);
         return -1;
     }
     return backup_one_shell(shell, dest, log);
@@ -748,7 +748,7 @@ int appcache_clear_store_origin_user(const char *userid, appcache_log_fn log)
     shell_path(shell, sizeof(shell), userid);
     if (!find_db(shell, 0, db, sizeof(db))) {
         if (log)
-            log("[WKCLEAN] no ApplicationCache.db for %s\n", userid);
+            log("[CLEAN] no ApplicationCache.db for %s\n", userid);
         return 0;
     }
     /* Origin rows only. No file-level fallback. */
@@ -761,7 +761,7 @@ int appcache_manifest_clear_version(const char *userid, appcache_log_fn log)
     ver_path(path, sizeof(path), userid);
     if (unlink(path) == 0) {
         if (log)
-            log("[WKCLEAN] removed %s\n", path);
+            log("[CLEAN] removed %s\n", path);
         return 1;
     }
     return 0;

@@ -448,7 +448,7 @@ static int restore_app_db(char *concept_out, size_t concept_cap,
              "{\"data\":%lld,\"key\":\"path_pic0_info_time_stamp\",\"size\":8,"
              "\"type\":0}", (long long)s->pic0_ts);
     {
-        /* Undo IgniKey and any leftover AUTO_JB name in ConceptInfoJson. */
+        /* Undo the remap and any leftover AUTO_JB name in ConceptInfoJson. */
         const char *cj_args[] = {
             TILE_HUB_URI, s->hub, TILE_LABEL, s->title,
             "AUTO_JB", s->title,
@@ -613,7 +613,7 @@ static void restore_log(const char *fmt, ...)
     fflush(stdout);
 }
 
-/* Remove WK Store leftovers; no backups kept. */
+/* Remove product leftovers; no backups kept. */
 static int wipe_tree(const char *path)
 {
     char sub[512];
@@ -652,7 +652,7 @@ static void wipe_one(const char *path, int *total)
         return;
     n = wipe_tree(path);
     *total += n;
-    restore_log("[WKRESTORE] wiped %s (%d)\n", path, n);
+    restore_log("[RESTORE] wiped %s (%d)\n", path, n);
 }
 
 /* Recursively wipe ApplicationCache db/sidecars and flat-file dirs under
@@ -726,8 +726,8 @@ static void wipe_wk_leftovers(void)
     wipe_one("/data/wkal", &total);
     wipe_one(BACKUP_DIR, &total);
     wipe_one(RESTORE_PRE_DIR, &total);
-    toast("Removed WK leftovers (%d).", total);
-    restore_log("[WKRESTORE] leftover wipe total=%d\n", total);
+    toast("Removed old files (%d).", total);
+    restore_log("[RESTORE] leftover wipe total=%d\n", total);
 }
 
 
@@ -780,11 +780,11 @@ static int restore_send_reboot_elf(void)
         usleep(250000);
     }
     if (fd < 0) {
-        restore_log("[WKRESTORE] reboot connect :9021 failed\n");
+        restore_log("[RESTORE] reboot connect :9021 failed\n");
         return -1;
     }
 
-    restore_log("[WKRESTORE] Sending embedded reboot.elf (%u bytes) to :9021\n",
+    restore_log("[RESTORE] Sending embedded reboot.elf (%u bytes) to :9021\n",
                 (unsigned)g_reboot_elf_len);
     rc = restore_send_all(fd, g_reboot_elf, g_reboot_elf_len);
     shutdown(fd, SHUT_WR);
@@ -846,7 +846,7 @@ int main(void)
     /* Clear Store AppCache origin, then delete all WK leftovers (no backups). */
     signal(SIGPIPE, SIG_IGN);
     int ac = appcache_clean_store_all_users(restore_log);
-    restore_log("[WKRESTORE] appcache_clean_store_all_users -> %d\n", ac);
+    restore_log("[RESTORE] appcache_clean_store_all_users -> %d\n", ac);
     wipe_wk_leftovers();
 
     toast("Store restored (%d rows). Reboot manually.", app_rows + info_rows);

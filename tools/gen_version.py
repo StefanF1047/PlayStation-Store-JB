@@ -30,6 +30,8 @@ import re
 import subprocess
 import sys
 
+from branding import apply_tokens
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HEADER = os.path.join(REPO, "include", "wkali_version.h")
 WKALI_H = os.path.join(REPO, "include", "wkali.h")
@@ -140,9 +142,8 @@ def main(argv=None):
     # custom version) so the app label reflects what was built.
     with open(PARAM_TEMPLATE, "rb") as f:
         param = f.read()
-    write_if_changed(
-        PARAM_JSON, param.replace(VERSION_PLACEHOLDER, info["title"].encode("utf-8"))
-    )
+    param = param.replace(VERSION_PLACEHOLDER, info["title"].encode("utf-8"))
+    write_if_changed(PARAM_JSON, apply_tokens(param))
     return 0
 
 

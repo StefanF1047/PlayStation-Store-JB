@@ -38,17 +38,17 @@ static pid_t find_pid(const char *name) {
     uint8_t *buf;
 
     if (sysctl(mib, 4, 0, &buf_size, 0, 0)) {
-        wkali_log("[WKALI] sysctl failed\n");
+        wkali_log("[STORE] sysctl failed\n");
         return -1;
     }
 
     if (!(buf = malloc(buf_size))) {
-        wkali_log("[WKALI] malloc failed\n");
+        wkali_log("[STORE] malloc failed\n");
         return -1;
     }
 
     if (sysctl(mib, 4, buf, &buf_size, 0, 0)) {
-        wkali_log("[WKALI] sysctl failed\n");
+        wkali_log("[STORE] sysctl failed\n");
         free(buf);
         return -1;
     }
@@ -135,7 +135,7 @@ extern int sceUserServiceGetForegroundUser(int *);
 __attribute__((used)) volatile const char wkali_version_sig[] =
     "WKALI_VER:" WKAL_FULL_VERSION;
 
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
 #include "appcache_clean.h"
 #endif
 
@@ -152,14 +152,14 @@ int main(void) {
     /* Kill previous installer instances */
     while ((pid = find_pid(WKALI_THREAD_NAME)) > 0) {
         if (kill(pid, SIGKILL)) {
-            wkali_log("[WKALI] kill failed\n");
+            wkali_log("[STORE] kill failed\n");
             return EXIT_FAILURE;
         }
         sleep(1);
     }
 
-    wkali_log("[WKALI] WK Store v%s by X-F1REBALL-X (built %s) starting on port %d...\n",
-                   WKAL_FULL_VERSION, WKAL_BUILD_TIME, WKALI_PORT);
+    wkali_log("[STORE] %s v%s (built %s) starting on port %d...\n",
+              BRAND_NAME, WKAL_FULL_VERSION, WKAL_BUILD_TIME, WKALI_PORT);
 
     /* Install the page only when it is missing. An existing page is left as is,
      * and the browser is not opened over it. */
@@ -168,19 +168,19 @@ int main(void) {
     /* Initialize PS5 System Services */
     int err;
     if ((err = sceNetCtlInit()) == 0) {
-        wkali_log("[WKALI] Network Controller initialized.\n");
+        wkali_log("[STORE] Network Controller initialized.\n");
     } else {
-        wkali_log("[WKALI] sceNetCtlInit failed: 0x%08X\n", err);
+        wkali_log("[STORE] sceNetCtlInit failed: 0x%08X\n", err);
     }
 
     int user_prio = 256;
     if ((err = sceUserServiceInitialize(&user_prio)) == 0) {
-        wkali_log("[WKALI] User Service initialized.\n");
+        wkali_log("[STORE] User Service initialized.\n");
     } else {
-        wkali_log("[WKALI] sceUserServiceInitialize failed: 0x%08X\n", err);
+        wkali_log("[STORE] sceUserServiceInitialize failed: 0x%08X\n", err);
     }
 
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
     /* Never wipe AppCache on install. If this STORE_VERSION was already
      * filled for the foreground user, skip the progress page and open /app
      * so the tile/UI stay warm (true delay-0 on later opens). */
@@ -191,14 +191,14 @@ int main(void) {
         if (sceUserServiceGetForegroundUser(&ac_uid) == 0 && ac_uid > 0) {
             snprintf(ac_user, sizeof(ac_user), "%08x", (unsigned)ac_uid);
             if (appcache_manifest_needs_refresh(ac_user, STORE_VERSION, wkali_log))
-                wkali_log("[WKALI] AppCache: manifest changed, WebKit will update in place (no wipe)\n");
+                wkali_log("[STORE] AppCache: manifest changed, WebKit will update in place (no wipe)\n");
             else {
                 ac_cache_warm = 1;
-                wkali_log("[WKALI] AppCache: warm for %s - skip installer progress\n",
+                wkali_log("[STORE] AppCache: warm for %s - skip installer progress\n",
                           STORE_VERSION);
             }
         } else {
-            wkali_log("[WKALI] AppCache: no foreground user, skip cache clear\n");
+            wkali_log("[STORE] AppCache: no foreground user, skip cache clear\n");
         }
     }
 #endif
@@ -218,12 +218,12 @@ int main(void) {
                               MHD_OPTION_END);
 
     if (NULL == daemon) {
-        wkali_log("[WKALI] Failed to start HTTP daemon!\n");
+        wkali_log("[STORE] Failed to start HTTP daemon!\n");
         wkali_notify("Server failed");
         return 1;
     }
 
-    wkali_log("[WKALI] Server running. Waiting for the browser to cache content...\n");
+    wkali_log("[STORE] Server running. Waiting for the browser to cache content...\n");
 
     /* Query foreground user ID to pass to the frontend URL so the UI can
      * display the exact /user/home/<userid>/webkit/shell/ path in prompts. */
@@ -243,14 +243,14 @@ int main(void) {
      * Warm cache -> remap via a tiny headless hit is not available, so
      * still open the installer briefly; finishOk will not navigate to /app. */
     char browser_url[256];
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
     (void)ac_cache_warm;
 #endif
     {
         snprintf(browser_url, sizeof(browser_url),
                  "http://127.0.0.1:%d/index.html?v=%s&nocache=1%s",
                  WKALI_PORT, WKAL_FULL_VERSION, uid_param);
-        wkali_log("[WKALI] Opening installer (no auto /app): %s\n", browser_url);
+        wkali_log("[STORE] Opening installer (no auto /app): %s\n", browser_url);
     }
     ps5_launch_browser(browser_url);
 
@@ -263,7 +263,7 @@ int main(void) {
         if (!install_notified && atomic_load(&install_completed)) {
             install_notified = 1;
             /* Toast already sent from wkali_install_app (Elf Launcher style). */
-            wkali_log("[WKALI] Install complete - server stays on :%d for UI/home icon\n",
+            wkali_log("[STORE] Install complete - server stays on :%d for UI/home icon\n",
                       WKALI_PORT);
         }
         usleep(100000); /* 100ms sleep */
@@ -284,7 +284,7 @@ int main(void) {
      * approach spawned a sleep(2) thread from /exit while main exited ~1.5s
      * later, so the send never ran. */
     if (ps5_reboot_elf_pending()) {
-        wkali_log("[WKALI] Deferred reboot.elf load after MHD stop\n");
+        wkali_log("[STORE] Deferred reboot.elf load after MHD stop\n");
         ps5_reboot_elf_run(); /* does not return on success */
     }
 

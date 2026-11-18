@@ -69,13 +69,17 @@ W.LS_HISTORY_KEY = 'wkal_jb_history';
 W.CHOICE_ELF_LAUNCHER = 'elf-launcher';
 W.CHOICE_PAYLOAD_MANAGER = 'payload-manager';
 
+/* After a successful jailbreak the page sends this payload to elfldr (:9021)
+ * and then returns to the PS5 home screen. Hardcoded: Payload Manager. */
+W.POST_JB_PAYLOAD = 'pldmgr.elf';
+
 W.getLauncherChoice = function () {
-  /* Payload Manager removed from UI; always Elf Launcher. */
-  return W.CHOICE_ELF_LAUNCHER;
+  /* Kept for older code paths: the post-JB payload is Payload Manager. */
+  return W.CHOICE_PAYLOAD_MANAGER;
 };
 
-W.setLauncherChoice = function (choice) {
-  var v = W.CHOICE_ELF_LAUNCHER;
+W.setLauncherChoice = function () {
+  var v = W.getLauncherChoice();
   W.lsSet(W.LS_LAUNCHER_KEY, v);
   W.state.launcherChoice = v;
   if (W.ui && W.ui.applyLauncherChoice) W.ui.applyLauncherChoice(v);

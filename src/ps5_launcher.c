@@ -38,7 +38,7 @@ typedef struct {
 
 int ps5_launch_browser(const char *uri) {
 
-  wkali_log("[WKALI] Launching browser: %s\n", uri);
+  wkali_log("[STORE] Launching browser: %s\n", uri);
 
   if (sceSystemServiceLaunchWebBrowser(uri) != 0) {
 
@@ -68,7 +68,7 @@ int ps5_return_to_home(void) {
 
   if (mod < 0) {
 
-    wkali_log("[WKALI] ShellUIUtil load failed: 0x%08x\n", mod);
+    wkali_log("[STORE] ShellUIUtil load failed: 0x%08x\n", mod);
 
     return -1;
 
@@ -80,7 +80,7 @@ int ps5_return_to_home(void) {
 
   if (!p_init || !p_launch) {
 
-    wkali_log("[WKALI] ShellUIUtil symbols missing\n");
+    wkali_log("[STORE] ShellUIUtil symbols missing\n");
 
     return -1;
 
@@ -102,7 +102,7 @@ int ps5_return_to_home(void) {
 
   }
 
-  wkali_log("[WKALI] Returning to home (close browser), userId=0x%08x\n",
+  wkali_log("[STORE] Returning to home (close browser), userId=0x%08x\n",
 
             param.userId);
 
@@ -110,7 +110,7 @@ int ps5_return_to_home(void) {
 
   if (res != 0) {
 
-    wkali_log("[WKALI] navigateToHome failed: 0x%08x\n", res);
+    wkali_log("[STORE] navigateToHome failed: 0x%08x\n", res);
 
   }
 
@@ -118,7 +118,7 @@ int ps5_return_to_home(void) {
 
 }
 
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
 
 #include "reboot_elf.h"
 
@@ -204,7 +204,7 @@ static int connect_elfldr(uint32_t host_be) {
 
       return fd;
 
-    wkali_log("[WKALI] reboot connect attempt %d host=0x%08x failed: %d\n",
+    wkali_log("[STORE] reboot connect attempt %d host=0x%08x failed: %d\n",
 
               attempt, (unsigned)ntohl(host_be), errno);
 
@@ -232,7 +232,7 @@ static int write_reboot_to_disk(const char *path) {
 
   if (fd < 0) {
 
-    wkali_log("[WKALI] write %s failed: %d\n", path, errno);
+    wkali_log("[STORE] write %s failed: %d\n", path, errno);
 
     return -1;
 
@@ -302,7 +302,7 @@ static int send_reboot_elf_to_elfldr(void) {
 
       if (fd >= 0) {
 
-        wkali_log("[WKALI] Sending file:// reboot.elf to elfldr :9021\n");
+        wkali_log("[STORE] Sending file:// reboot.elf to elfldr :9021\n");
 
         rc = send_all_fd(fd, (const unsigned char *)uri, (size_t)n);
 
@@ -314,13 +314,13 @@ static int send_reboot_elf_to_elfldr(void) {
 
         if (rc == 0) {
 
-          wkali_log("[WKALI] file:// reboot.elf sent\n");
+          wkali_log("[STORE] file:// reboot.elf sent\n");
 
           return 0;
 
         }
 
-        wkali_log("[WKALI] file:// send failed, trying raw bytes\n");
+        wkali_log("[STORE] file:// send failed, trying raw bytes\n");
 
       }
 
@@ -332,13 +332,13 @@ static int send_reboot_elf_to_elfldr(void) {
 
   if (fd < 0) {
 
-    wkali_log("[WKALI] reboot connect :9021 failed\n");
+    wkali_log("[STORE] reboot connect :9021 failed\n");
 
     return -1;
 
   }
 
-  wkali_log("[WKALI] Sending raw reboot.elf (%u bytes) to elfldr :9021\n",
+  wkali_log("[STORE] Sending raw reboot.elf (%u bytes) to elfldr :9021\n",
 
             (unsigned)g_reboot_elf_len);
 
@@ -352,13 +352,13 @@ static int send_reboot_elf_to_elfldr(void) {
 
   if (rc != 0) {
 
-    wkali_log("[WKALI] reboot.elf send failed: %d\n", errno);
+    wkali_log("[STORE] reboot.elf send failed: %d\n", errno);
 
     return -1;
 
   }
 
-  wkali_log("[WKALI] reboot.elf sent\n");
+  wkali_log("[STORE] reboot.elf sent\n");
 
   return 0;
 
@@ -366,7 +366,7 @@ static int send_reboot_elf_to_elfldr(void) {
 
 int ps5_reboot_console(void) {
 
-  wkali_log("[WKALI] Soft rebooting via reboot.elf -> :9021 (after MHD stop)\n");
+  wkali_log("[STORE] Soft rebooting via reboot.elf -> :9021 (after MHD stop)\n");
 
   wkali_notify("Soft rebooting");
 
@@ -390,7 +390,7 @@ int ps5_reboot_elf_run(void) {
 
     return 0;
 
-  wkali_log("[WKALI] Running deferred reboot.elf load\n");
+  wkali_log("[STORE] Running deferred reboot.elf load\n");
 
   rc = send_reboot_elf_to_elfldr();
 
@@ -404,7 +404,7 @@ int ps5_reboot_elf_run(void) {
 
   /* Stay alive until console actually reboots; do not return to exit main. */
 
-  wkali_log("[WKALI] reboot.elf handed to elfldr; waiting for reboot\n");
+  wkali_log("[STORE] reboot.elf handed to elfldr; waiting for reboot\n");
 
   for (;;)
 
@@ -437,13 +437,13 @@ static int send_named_elf_to_elfldr(const char *name, const unsigned char *blob,
     if (n > 0 && (size_t)n < sizeof(uri)) {
       fd = connect_elfldr(htonl(INADDR_LOOPBACK));
       if (fd >= 0) {
-        wkali_log("[WKALI] Sending installed file:// %s to elfldr :9021\n", name);
+        wkali_log("[STORE] Sending installed file:// %s to elfldr :9021\n", name);
         rc = send_all_fd(fd, (const unsigned char *)uri, (size_t)n);
         shutdown(fd, SHUT_WR);
         usleep(300000);
         close(fd);
         if (rc == 0) {
-          wkali_log("[WKALI] installed file:// %s sent\n", name);
+          wkali_log("[STORE] installed file:// %s sent\n", name);
           return 0;
         }
       }
@@ -456,7 +456,7 @@ static int send_named_elf_to_elfldr(const char *name, const unsigned char *blob,
 
   if (fd >= 0) {
 
-    wkali_log("[WKALI] Sending raw %s (%u bytes) to elfldr :9021\n", name, (unsigned)len);
+    wkali_log("[STORE] Sending raw %s (%u bytes) to elfldr :9021\n", name, (unsigned)len);
 
     rc = send_all_fd(fd, blob, len);
 
@@ -468,17 +468,17 @@ static int send_named_elf_to_elfldr(const char *name, const unsigned char *blob,
 
     if (rc == 0) {
 
-      wkali_log("[WKALI] %s sent\n", name);
+      wkali_log("[STORE] %s sent\n", name);
 
       return 0;
 
     }
 
-    wkali_log("[WKALI] raw %s send failed: %d, trying file://\n", name, errno);
+    wkali_log("[STORE] raw %s send failed: %d, trying file://\n", name, errno);
 
   } else {
 
-    wkali_log("[WKALI] power connect :9021 failed for %s, trying file://\n", name);
+    wkali_log("[STORE] power connect :9021 failed for %s, trying file://\n", name);
 
   }
 
@@ -498,7 +498,7 @@ static int send_named_elf_to_elfldr(const char *name, const unsigned char *blob,
 
     if (wfd < 0) {
 
-      wkali_log("[WKALI] write %s failed: %d\n", disk_path, errno);
+      wkali_log("[STORE] write %s failed: %d\n", disk_path, errno);
 
       return -1;
 
@@ -542,13 +542,13 @@ static int send_named_elf_to_elfldr(const char *name, const unsigned char *blob,
 
   if (fd < 0) {
 
-    wkali_log("[WKALI] power file:// connect :9021 failed for %s\n", name);
+    wkali_log("[STORE] power file:// connect :9021 failed for %s\n", name);
 
     return -1;
 
   }
 
-  wkali_log("[WKALI] Sending file:// %s to elfldr :9021\n", name);
+  wkali_log("[STORE] Sending file:// %s to elfldr :9021\n", name);
 
   rc = send_all_fd(fd, (const unsigned char *)uri, (size_t)n);
 
@@ -560,13 +560,13 @@ static int send_named_elf_to_elfldr(const char *name, const unsigned char *blob,
 
   if (rc != 0) {
 
-    wkali_log("[WKALI] file:// %s send failed: %d\n", name, errno);
+    wkali_log("[STORE] file:// %s send failed: %d\n", name, errno);
 
     return -1;
 
   }
 
-  wkali_log("[WKALI] file:// %s sent\n", name);
+  wkali_log("[STORE] file:// %s sent\n", name);
 
   return 0;
 
@@ -588,7 +588,7 @@ int ps5_seed_power_elfs(void) {
     snprintf(path, sizeof(path), "/data/wkal/%s", items[i].name);
     fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0755);
     if (fd < 0) {
-      wkali_log("[WKALI] seed %s failed: %d\n", path, errno);
+      wkali_log("[STORE] seed %s failed: %d\n", path, errno);
       continue;
     }
     p = items[i].blob;
@@ -598,7 +598,7 @@ int ps5_seed_power_elfs(void) {
       if (w < 0) {
         if (errno == EINTR) continue;
         close(fd);
-        wkali_log("[WKALI] seed write %s failed: %d\n", path, errno);
+        wkali_log("[STORE] seed write %s failed: %d\n", path, errno);
         fd = -1;
         break;
       }
@@ -609,7 +609,7 @@ int ps5_seed_power_elfs(void) {
     if (fd >= 0) {
       fsync(fd);
       close(fd);
-      wkali_log("[WKALI] seeded %s (%u bytes)\n", path, items[i].len);
+      wkali_log("[STORE] seeded %s (%u bytes)\n", path, items[i].len);
       ok++;
     }
   }
@@ -654,7 +654,7 @@ int ps5_power_action(const char *action) {
 
 int ps5_reboot_console(void) {
 
-  wkali_log("[WKALI] ps5_reboot_console: Store-only\n");
+  wkali_log("[STORE] ps5_reboot_console: Store-only\n");
 
   return -1;
 

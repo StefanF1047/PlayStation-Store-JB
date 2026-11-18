@@ -1,4 +1,4 @@
-/* WK Store Clean: reset the Store AppCache for a clean-console test.
+/* Store Clean: reset the Store AppCache for a clean-console test.
  *
  * For the foreground user only:
  *   1. copy ApplicationCache.db* to a NEW timestamped folder
@@ -51,32 +51,32 @@ int main(void)
 
     sceUserServiceInitialize(&prio);
     if (sceUserServiceGetForegroundUser(&uid) != 0 || uid <= 0) {
-        clean_log("[WKCLEAN] no foreground user, nothing done\n");
+        clean_log("[CLEAN] no foreground user, nothing done\n");
         toast("WK Clean: no user signed in.");
         return 1;
     }
     snprintf(user, sizeof(user), "%08x", (unsigned)uid);
-    clean_log("[WKCLEAN] user %s\n", user);
+    clean_log("[CLEAN] user %s\n", user);
 
     snprintf(dest, sizeof(dest), APPCACHE_BACKUP_ROOT "/%s_%s", user, stamp);
     b = appcache_backup_user_to(user, dest, clean_log);
     if (b <= 0) {
-        clean_log("[WKCLEAN] backup failed (%d), cache NOT touched\n", b);
+        clean_log("[CLEAN] backup failed (%d), cache NOT touched\n", b);
         toast("WK Clean: backup failed, nothing removed.");
         return 1;
     }
-    clean_log("[WKCLEAN] backup %d files -> %s\n", b, dest);
+    clean_log("[CLEAN] backup %d files -> %s\n", b, dest);
 
     n = appcache_clear_store_origin_user(user, clean_log);
     if (n < 0) {
-        clean_log("[WKCLEAN] origin delete failed, cache kept\n");
+        clean_log("[CLEAN] origin delete failed, cache kept\n");
         toast("WK Clean: could not remove Store cache.");
         return 1;
     }
-    clean_log("[WKCLEAN] removed %d Store AppCache rows\n", n);
+    clean_log("[CLEAN] removed %d Store AppCache rows\n", n);
 
     appcache_manifest_clear_version(user, clean_log);
-    clean_log("[WKCLEAN] done\n");
+    clean_log("[CLEAN] done\n");
     toast("WK Clean: Store cache removed. Backup in %s", dest);
     if (g_log)
         fclose(g_log);

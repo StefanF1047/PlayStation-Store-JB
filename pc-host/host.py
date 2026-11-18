@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PC Host for the PS5 WK Store.
+"""PC Host for the PS5 store page.
 
 A zero-dependency DNS + HTTP server that:
   - Spoofs ``manuals.playstation.net`` (or any --target) to this PC's IP.
@@ -48,13 +48,21 @@ DEFAULT_TARGET = "manuals.playstation.net"
 DEFAULT_OVERRIDES = "./overrides"
 DEFAULT_TTL = 300
 
-APP_NAME = "ps5-webkit-autoloader PC host"
+APP_NAME = "PS5 store PC host"
 
 # [[VERSION_PLACEHOLDER]]
 VERSION = "dev"
 
 # [[BUILD_TIME_PLACEHOLDER]]
 BUILD_TIME = "dev"
+
+# [[BRAND_NAME_PLACEHOLDER]]
+BRAND_NAME = "Store"
+
+# Set "repo" in branding.json ("owner/repo") to enable the update check and
+# the credits link. Empty disables both.
+# [[BRAND_REPO_PLACEHOLDER]]
+BRAND_REPO = ""
 
 # ANSI colors (enabled only when output is a real terminal)
 def _init_console():
@@ -98,9 +106,9 @@ def build_banner():
         [
             "",
             "   ┌" + "─" * width + "┐",
-            row("PS5-WEBKIT-AUTOLOADER"),
+            row(BRAND_NAME.upper()),
             row(f"INSTALLER-HOST v{VERSION}"),
-            row(f"by X-F1REBALL-X (built {BUILD_TIME})"),
+            row(f"built {BUILD_TIME}"),
             "   └" + "─" * width + "┘",
         ]
     )
@@ -111,14 +119,14 @@ def build_credits():
     """ASCII box shown on the splash screen."""
     width = 46
     row = lambda text: "   │" + text.center(width) + "│"
+    rows = [row("THIS PROJECT IS FREE & OPEN SOURCE")]
+    if BRAND_REPO:
+        rows.append(row("github.com/" + BRAND_REPO))
     box = "\n".join(
-        [
-            "",
-            "   ┌" + "─" * width + "┐",
-            row("THIS PROJECT IS FREE & OPEN SOURCE"),
-            row("github.com/X-F1REBALL-X/wk-store"),
-            "   └" + "─" * width + "┘",
-        ]
+        [""]
+        + ["   ┌" + "─" * width + "┐"]
+        + rows
+        + ["   └" + "─" * width + "┘"]
     )
     return _style(box, 32)
 
@@ -145,9 +153,9 @@ class UpdateChecker:
     screen. All failures are silent - the notice is best-effort only.
     """
 
-    API_URL = "https://api.github.com/repos/X-F1REBALL-X/wk-store/releases/latest"
-    RELEASES_URL = "https://github.com/X-F1REBALL-X/wk-store/releases"
-    USER_AGENT = "wk-store-host"
+    API_URL = f"https://api.github.com/repos/{BRAND_REPO}/releases/latest" if BRAND_REPO else ""
+    RELEASES_URL = f"https://github.com/{BRAND_REPO}/releases" if BRAND_REPO else ""
+    USER_AGENT = "store-host"
     TIMEOUT = 3
 
     def __init__(self, version):
@@ -159,6 +167,10 @@ class UpdateChecker:
 
     def start(self):
         """Start the background check in a daemon thread."""
+        if not self.API_URL:
+            with self._lock:
+                self.done = True
+            return
         self.thread = threading.Thread(target=self.check, daemon=True)
         self.thread.start()
 
@@ -362,8 +374,8 @@ def build_response(qid, question_bytes, ip=None):
 
 class GuideStatus:
     """One-shot status milestones: prints a message when the PS5 first
-    contacts the server, and another when the WK Store Installer
-    has been served (a /document/ request)."""
+    contacts the server, and another when the installer has been served
+    (a /document/ request)."""
 
     def __init__(self, logger=print):
         self.logger = logger
@@ -380,7 +392,7 @@ class GuideStatus:
             tag("\n[+] PS5 connection detected.\n"
                 "    Now open the User's Guide on your PS5\n"
                 "    (Settings -> User's Guide) to install the\n"
-                "    WK Store.\n")
+                f"    {BRAND_NAME.lower()} tile.\n")
         )
 
     def on_document_served(self):
@@ -390,7 +402,7 @@ class GuideStatus:
             self.served = True
         self.logger(
             tag("\n[+] Installer served.\n"
-                "    If the exploit succeeded and the WK Store has been\n"
+                "    If the exploit succeeded and the tile has been\n"
                 "    installed, you can now close this host and change\n"
                 "    your PS5 DNS back - otherwise your PS5 won't be able to\n"
                 "    access the Internet.\n")
@@ -566,7 +578,7 @@ def resolve_dir(path):
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         prog="host.py",
-        description="DNS spoofer + dual-directory HTTP server for the PS5 WK Store.",
+        description="DNS spoofer + dual-directory HTTP server for the PS5 store page.",
         epilog="Examples:\n"
         "  python3 host.py\n"
         "  python3 host.py --target manuals.playstation.net --base ../frontend/autoloader\n"

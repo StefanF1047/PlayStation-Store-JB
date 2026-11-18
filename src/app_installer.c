@@ -1,7 +1,6 @@
 /*
- * PS5 Homescreen App Installer for the WK Store Installer.
- * Based on the original implementation in ftpsrv by John Tײ³ֲ¶rnblom
- * by X-F1REBALL-X.
+ * PS5 Homescreen App Installer.
+ * Based on the original implementation in ftpsrv by John Tornblom.
  */
 
 #include <errno.h>
@@ -16,7 +15,7 @@
 #include "wkali.h"
 #include <ps5/kernel.h>
 
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
 #include "file_registry.h"
 #include "inflate.h"
 #endif
@@ -35,8 +34,6 @@
 
 INCASSET(param_json, "assets/param.json");
 INCASSET(icon0_png, "assets/icon0.png");
-INCASSET(elfl_param_json, "assets/companions/elf-launcher/param.json");
-INCASSET(elfl_icon0_png, "assets/companions/elf-launcher/icon0.png");
 
 int sceAppInstUtilInitialize(void);
 int sceAppInstUtilTerminate(void);
@@ -122,46 +119,46 @@ int wkali_install_app(void) {
 
   int first_install = !wkali_page_installed();
   if (first_install) {
-    wkali_log("[WKALI] Installing browser launcher app (%s)...\n", title_id);
+    wkali_log("[STORE] Installing browser launcher app (%s)...\n", title_id);
   } else {
-    wkali_log("[WKALI] Page already present (%s). Updating quietly...\n",
+    wkali_log("[STORE] Page already present (%s). Updating quietly...\n",
               title_id);
   }
 
   int err;
   if ((err = sceAppInstUtilInitialize())) {
-    wkali_log("[WKALI] sceAppInstUtilInitialize: error 0x%08X\n", err);
+    wkali_log("[STORE] sceAppInstUtilInitialize: error 0x%08X\n", err);
     return -1;
   }
 
   char sce_sys_dir[256];
   snprintf(sce_sys_dir, sizeof(sce_sys_dir), "/user/app/%s/sce_sys", title_id);
   if (mkdir_p(sce_sys_dir, 0755) != 0) {
-    wkali_log("[WKALI] Failed to create app dir: %s (errno: %d)\n",
+    wkali_log("[STORE] Failed to create app dir: %s (errno: %d)\n",
               sce_sys_dir, errno);
     sceAppInstUtilTerminate();
     return -1;
   }
 
   if (install_file(param_path, param_json, param_json_size)) {
-    wkali_log("[WKALI] Failed to install param.json\n");
+    wkali_log("[STORE] Failed to install param.json\n");
     sceAppInstUtilTerminate();
     return -1;
   }
 
   if (install_file(icon_path, icon0_png, icon0_png_size)) {
-    wkali_log("[WKALI] Failed to install icon0.png\n");
+    wkali_log("[STORE] Failed to install icon0.png\n");
     sceAppInstUtilTerminate();
     return -1;
   }
 
   if ((err = install_app(title_id, "/user/app/"))) {
-    wkali_log("[WKALI] install_app: error 0x%08X\n", err);
+    wkali_log("[STORE] install_app: error 0x%08X\n", err);
     sceAppInstUtilTerminate();
     return -1;
   }
 
-  wkali_log("[WKALI] Launcher app installed successfully.\n");
+  wkali_log("[STORE] Launcher app installed successfully.\n");
 
   sceAppInstUtilTerminate();
   return 0;
@@ -176,7 +173,10 @@ static int title_installed(const char *title_id) {
   return stat(param_path, &st) == 0 && S_ISREG(st.st_mode);
 }
 
-static int install_title_if_missing(const char *title_id, const char *label,
+/* Install a homescreen page (param.json + icon0.png) when missing. Kept for
+ * the legacy homescreen build; unused by the Store build, hence the attribute. */
+static int __attribute__((unused))
+install_title_if_missing(const char *title_id, const char *label,
                                     const uint8_t *param, size_t param_size,
                                     const uint8_t *icon, size_t icon_size) {
   char param_path[256];
@@ -189,16 +189,16 @@ static int install_title_if_missing(const char *title_id, const char *label,
     return 0;
   }
 
-  wkali_log("[WKALI] Installing %s (%s)...\n", label, title_id);
+  wkali_log("[STORE] Installing %s (%s)...\n", label, title_id);
 
   if ((err = sceAppInstUtilInitialize())) {
-    wkali_log("[WKALI] sceAppInstUtilInitialize: error 0x%08X\n", err);
+    wkali_log("[STORE] sceAppInstUtilInitialize: error 0x%08X\n", err);
     return -1;
   }
 
   snprintf(sce_sys_dir, sizeof(sce_sys_dir), "/user/app/%s/sce_sys", title_id);
   if (mkdir_p(sce_sys_dir, 0755) != 0) {
-    wkali_log("[WKALI] Failed to create app dir: %s (errno: %d)\n",
+    wkali_log("[STORE] Failed to create app dir: %s (errno: %d)\n",
               sce_sys_dir, errno);
     sceAppInstUtilTerminate();
     return -1;
@@ -210,30 +210,30 @@ static int install_title_if_missing(const char *title_id, const char *label,
            title_id);
 
   if (install_file(param_path, param, param_size)) {
-    wkali_log("[WKALI] Failed to install %s param.json\n", label);
+    wkali_log("[STORE] Failed to install %s param.json\n", label);
     sceAppInstUtilTerminate();
     return -1;
   }
 
   if (install_file(icon_path, icon, icon_size)) {
-    wkali_log("[WKALI] Failed to install %s icon0.png\n", label);
+    wkali_log("[STORE] Failed to install %s icon0.png\n", label);
     sceAppInstUtilTerminate();
     return -1;
   }
 
   if ((err = install_app(title_id, "/user/app/"))) {
-    wkali_log("[WKALI] install_app %s: error 0x%08X\n", label, err);
+    wkali_log("[STORE] install_app %s: error 0x%08X\n", label, err);
     sceAppInstUtilTerminate();
     return -1;
   }
 
-  wkali_log("[WKALI] %s installed successfully.\n", label);
+  wkali_log("[STORE] %s installed successfully.\n", label);
   sceAppInstUtilTerminate();
   return 0;
 }
 
 
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
 /* Find a registry entry whose path ends with suffix (versioned /app/<ver>/...). */
 static const FileEntry *registry_find_suffix(const char *suffix) {
   size_t slen;
@@ -261,7 +261,7 @@ static int seed_registry_elf_to_path(const char *suffix, const char *dest) {
 
   entry = registry_find_suffix(suffix);
   if (!entry || !entry->data || entry->orig_size == 0) {
-    wkali_log("[WKALI] launcher install: missing registry entry for %s\n", suffix);
+    wkali_log("[STORE] launcher install: missing registry entry for %s\n", suffix);
     return -1;
   }
 
@@ -270,11 +270,11 @@ static int seed_registry_elf_to_path(const char *suffix, const char *dest) {
     unsigned long sourcelen = entry->size;
     buf = malloc(entry->orig_size);
     if (!buf) {
-      wkali_log("[WKALI] launcher install: OOM for %s (%u)\n", suffix, entry->orig_size);
+      wkali_log("[STORE] launcher install: OOM for %s (%u)\n", suffix, entry->orig_size);
       return -1;
     }
     if (puff(buf, &destlen, entry->data, &sourcelen) != 0) {
-      wkali_log("[WKALI] launcher install: inflate failed for %s\n", suffix);
+      wkali_log("[STORE] launcher install: inflate failed for %s\n", suffix);
       free(buf);
       return -1;
     }
@@ -285,9 +285,9 @@ static int seed_registry_elf_to_path(const char *suffix, const char *dest) {
   }
 
   if (install_file(dest, buf, buflen) != 0) {
-    wkali_log("[WKALI] launcher install: write failed %s\n", dest);
+    wkali_log("[STORE] launcher install: write failed %s\n", dest);
   } else {
-    wkali_log("[WKALI] launcher install: wrote %s (%zu bytes)\n", dest, buflen);
+    wkali_log("[STORE] launcher install: wrote %s (%zu bytes)\n", dest, buflen);
     rc = 0;
   }
 
@@ -300,12 +300,12 @@ int wkali_seed_launcher_files(void) {
   int rc = 0;
 
   if (mkdir_p("/data/elf-launcher", 0755) != 0) {
-    wkali_log("[WKALI] launcher install: mkdir failed (errno %d)\n", errno);
+    wkali_log("[STORE] launcher install: mkdir failed (errno %d)\n", errno);
     return -1;
   }
 
-  /* Install the serving executable in EL's own directory. No payload queue. */
-  if (seed_registry_elf_to_path("/payloads/elf-launcher.elf",
+  /* Install the payload elfldr is pointed at, in its own directory. */
+  if (seed_registry_elf_to_path("/payloads/pldmgr.elf",
                                 "/data/elf-launcher/elf-launcher.elf") != 0)
     rc = -1;
 
@@ -330,13 +330,10 @@ int wkali_seed_launcher_files(void) { return 0; }
 int wkali_install_companions(void) {
   int rc = 0;
 
-  /* Elf Launcher homescreen page when missing. Never autoload payloads. */
-  if (install_title_if_missing("ELFL00001", "Elf Launcher", elfl_param_json,
-                               elfl_param_json_size, elfl_icon0_png,
-                               elfl_icon0_png_size))
-    rc = -1;
+  /* No Elf Launcher homescreen page: the post-JB payload is Payload Manager
+   * and no :1000 UI is opened, so that tile would be dead. */
 
-  /* Install EL bootstrap files only; never create or modify its auto.list. */
+  /* Install the payload elfldr is pointed at; never create/modify auto.list. */
   if (wkali_seed_launcher_files() != 0)
     rc = -1;
   return rc;

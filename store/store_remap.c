@@ -9,7 +9,9 @@
 #include "config.h"
 #include "files.h"
 #include "icon_png.h"
+#if !STOCK_HOVER_ART
 #include "pic0_png.h"
+#endif
 #include "store_remap.h"
 #include "tile_edit.h"
 #include "toast.h"
@@ -30,8 +32,10 @@ static int assets_present(void)
     struct stat st;
     if (stat(TILE_ASSET_FILE, &st) != 0 || st.st_size <= 0)
         return 0;
+#if !STOCK_HOVER_ART
     if (stat(TILE_PIC0_FILE, &st) != 0 || st.st_size <= 0)
         return 0;
+#endif
     return 1;
 }
 
@@ -100,9 +104,14 @@ static int already_remapped(void)
     sqlite3_bind_text(st, 1, TILE_ID, -1, SQLITE_STATIC);
     sqlite3_bind_text(st, 2, "_path_pic0_info", -1, SQLITE_STATIC);
     if (sqlite3_step(st) == SQLITE_ROW) {
-        if (sqlite3_column_type(st, 0) != SQLITE_NULL &&
-            sqlite3_column_int64(st, 0) == (sqlite3_int64)TILE_PIC0_PATH_FLAG)
-            ok = 1;
+        /* Accept both the local-art flag and the stock 0 so upgrading between
+         * STOCK_HOVER_ART modes never overwrites the clean DB backup. */
+        if (sqlite3_column_type(st, 0) != SQLITE_NULL) {
+            sqlite3_int64 v = sqlite3_column_int64(st, 0);
+            if (v == (sqlite3_int64)TILE_PIC0_PATH_FLAG ||
+                v == (sqlite3_int64)TILE_PIC0_PATH_FLAG_STOCK)
+                ok = 1;
+        }
     }
     sqlite3_finalize(st);
     sqlite3_close(db);
@@ -143,6 +152,11 @@ static int install_assets(void)
     wkali_log("[STORE] %s %s (%u bytes)\n",
               r ? "wrote" : "unchanged", TILE_ASSET_FILE, (unsigned)g_icon_png_len);
 
+#if STOCK_HOVER_ART
+    /* Stock look: leave the console's own hover/detail art in charge.
+     * pic0.png/pic1.png stay absent and the DB keeps the stock pic values. */
+    wkali_log("[STORE] stock hover art: pic0/pic1 not written\n");
+#else
     /* pic0 = PS5 home hover / focus background (1920x1080). */
     r = files_store_if_changed(TILE_PIC0_FILE, g_pic0_png, g_pic0_png_len);
     if (r < 0) {
@@ -160,8 +174,9 @@ static int install_assets(void)
     }
     wkali_log("[STORE] %s %s (%u bytes)\n",
               r ? "wrote" : "unchanged", TILE_PIC1_FILE, (unsigned)g_pic0_png_len);
+#endif
 
-    wkali_log("[STORE] db refs icon0=%s pic0=%s\n", TILE_ASSET_REF, TILE_PIC0_REF);
+    wkali_log("[STORE] db refs icon0=%s\n", TILE_ASSET_REF);
     return 0;
 }
 

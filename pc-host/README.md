@@ -1,7 +1,7 @@
-# PC Host (ps5-webkit-autoloader)
+# PC Host
 
 A zero-dependency Python script that turns your PC into a local DNS + HTTPS
-server for the PS5 WK Store. No `pip install` required - only the
+server for the PS5 store page. No `pip install` required - only the
 Python 3 standard library.
 
 > Release tree marker: **v1.0.0**.

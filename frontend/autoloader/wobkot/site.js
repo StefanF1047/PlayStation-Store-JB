@@ -165,9 +165,8 @@ function leaveToHome() {
     }
   } catch (eUi) {}
   try { window.close(); } catch (e1) {}
-  try {
-    if (window.top && window.top !== window) window.top.close();
-  } catch (e2) {}
+  /* Do not close the browser from inside the chain: the Store page sends
+     pldmgr.elf to elfldr and then closes the browser via /api/home. */
   try {
     document.body.classList.add("done");
     document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f7f4ee;color:#047857;font:700 1.25rem system-ui,sans-serif">Jailbreak Successful</div>';
@@ -221,15 +220,26 @@ function tipElfUrl(url, tag) {
   } catch (e) {}
 }
 
+function launcherTipsDisabled() {
+  /* Wobkot runs as a top-level page: the parent Store page is gone, so this
+     page is the only one that can hand pldmgr.elf to elfldr. Never disable. */
+  return false;
+}
+
 function tipElfLauncherFromDisk() {
+  if (launcherTipsDisabled()) {
+    try { logger.info("launcher tip skipped (post-JB payload is handled by the page)"); } catch (e0) {}
+    return;
+  }
   tipElfUrl("http://127.0.0.1:9021/data/elf-launcher/elf-launcher.elf?t=" + Date.now(), "disk");
 }
 
 function tipElfLauncherBundled() {
+  if (launcherTipsDisabled()) return;
   /* If the home tile / disk ELF was deleted, tip the Store-bundled ELF via elfldr ?uri=. */
   try {
     var m = String(location.pathname || "").match(/^(.*\/app\/[^/]+\/)/);
-    var abs = (location.origin || "") + (m ? m[1] : "/app/") + "payloads/elf-launcher.elf";
+    var abs = (location.origin || "") + (m ? m[1] : "/app/") + "payloads/pldmgr.elf";
     var tip = "http://127.0.0.1:9021/?uri=" + encodeURIComponent(abs) + "&t=" + Date.now();
     tipElfUrl(tip, "bundled");
   } catch (e) {
@@ -268,6 +278,30 @@ function waitPort(port, ms) {
       } catch (e) {
         if (Date.now() >= deadline) resolve(false);
         else setTimeout(tick, 400);
+      }
+    }
+    tick();
+  });
+}
+
+/* Resolves true as soon as the port answers ANY HTTP response (even 404).
+   pldmgr's UI does not necessarily serve /version, so waitPort() (200 only)
+   is not suitable for it. */
+function waitHttpAny(port, ms) {
+  return new Promise(function (resolve) {
+    var deadline = Date.now() + (ms || 15000);
+    function tick() {
+      try {
+        fetch("http://127.0.0.1:" + port + "/?t=" + Date.now(),
+          { method: "GET", mode: "no-cors", cache: "no-store" })
+          .then(function () { resolve(true); })
+          .catch(function () {
+            if (Date.now() >= deadline) resolve(false);
+            else setTimeout(tick, 500);
+          });
+      } catch (e) {
+        if (Date.now() >= deadline) resolve(false);
+        else setTimeout(tick, 500);
       }
     }
     tick();
@@ -359,7 +393,7 @@ async function main() {
   const autoload = wkalAutoloadName();
   window.__wobkotT0 = Date.now();
   var ver0 = storeAppVersion() || "?";
-  logger.info("WK Store " + ver0 + " | chain Wobkot | start");
+  logger.info("[[BRAND_NAME_PLACEHOLDER]] " + ver0 + " | chain Wobkot | start");
   logger.info("PS5 WebView · thin Wobkot page");
   try {
     var meta = document.getElementById("metaMsg");
@@ -429,6 +463,12 @@ async function main() {
     postParent("elfldr-ready-ip");
     postParent("autoload", { ok: true, skipped: autoload === "wkal-skip" || !autoload, name: autoload || "" });
     if (window.__wobkotUi) window.__wobkotUi.success();
+    /* The payload is ~2.8 MB. Give elfldr time to fetch + start it before
+       leaving: closing the page first would abort the load. */
+    try {
+      var pmUp = await waitHttpAny(8084, 20000);
+      logger.info(pmUp ? "Payload Manager up on :8084" : "Payload Manager did not answer on :8084");
+    } catch (ePm) {}
     logger.info("Closing to PS5 home (Store " + ver + ", " + elapsed + "s)");
     leaveToHome();
   } catch (e) {

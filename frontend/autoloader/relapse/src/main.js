@@ -354,8 +354,8 @@ async function main(userlandRW) {
 
   if (result.payloads) {
     log("elfldr spawned; checking readiness before launcher", "info");
-    // WK self-update: parent may ask to (re)send a bundled ELF after JB,
-    // e.g. elf-launcher.elf so :1000 can download the new WK.
+    // Self-update: parent may ask to (re)send a bundled ELF after JB,
+    // e.g. elf-launcher.elf so :1000 can download the new build.
     window.addEventListener("message", async (ev) => {
       const d = ev.data;
       if (!d || d.type !== "wkal" || d.kind !== "resend-autoload" || !d.name) return;

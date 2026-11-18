@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Quick local dev server for the WK Store frontend.
+Quick local dev server for the store frontend.
 
 Serves frontend/autoloader/ the same way the PC host does for the PS5
 browser: the autoloader HTML hardcodes /app/ paths (that is the cached
 layout served by the ELF), so this server maps /app/* back to the base
-directory. It also injects the real version/build-time values into the
-[[VERSION_PLACEHOLDER]] / [[BUILD_TIME_PLACEHOLDER]] tokens so the page
-looks exactly like a real build.
+directory. It also injects the real version/build-time/branding values into
+the [[VERSION_PLACEHOLDER]] / [[BUILD_TIME_PLACEHOLDER]] / [[BRAND_*]] tokens
+so the page looks exactly like a real build.
 
 Usage:  make dev          (or python3 tools/dev_server.py [--port N])
 """
@@ -22,8 +22,11 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from branding import apply_tokens
+
 VERSION_TOKEN = b"[[VERSION_PLACEHOLDER]]"
 BUILD_TIME_TOKEN = b"[[BUILD_TIME_PLACEHOLDER]]"
+TEXT_EXTENSIONS = (".html", ".htm", ".js", ".css", ".json", ".svg", ".webmanifest")
 
 DEFAULT_PORT = 8123
 
@@ -65,10 +68,11 @@ def make_handler(base_dir, version, build_time):
                 return
             with open(full, "rb") as f:
                 data = f.read()
-            # Resolve version/build-time placeholders in the HTML entry page
-            # so the dev page mirrors a real build.
-            if rel.endswith((".html", ".htm")) or rel == "index.html":
+            # Resolve version/build-time/branding placeholders so the dev page
+            # mirrors a real build.
+            if rel.endswith(TEXT_EXTENSIONS):
                 data = data.replace(VERSION_TOKEN, version).replace(BUILD_TIME_TOKEN, build_time)
+                data = apply_tokens(data)
             if rel == "app.js":
                 # Build-time exploit override (auto | umtx2 | poops | p2jb),
                 # from the FORCE_EXPLOIT env - same token as the ELF/host builds.

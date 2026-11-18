@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Dependency build script for the PS5 Payload SDK inside Docker (libmicrohttpd only)
+# Dependency build script for the PS5 Payload SDK (libmicrohttpd only)
 # Release tree marker: v1.0.0
+#
+# Usage:
+#   bash build_deps.sh                       # installs into /opt/ps5-payload-sdk
+#   SDK=$HOME/.local/ps5-payload-sdk bash build_deps.sh
+#   make dependencies SDK=/path/to/sdk       # same thing
 set -e
 
-export PATH="/opt/ps5-payload-sdk/bin:$PATH"
+SDK="${SDK:-/opt/ps5-payload-sdk}"
+export PATH="$SDK/bin:$PATH"
 
 TEMPDIR=$(mktemp -d)
 trap 'rm -rf -- "$TEMPDIR"' EXIT
@@ -17,7 +23,7 @@ export AR=prospero-ar
 export NM=prospero-nm
 export RANLIB=prospero-ranlib
 
-echo "=== Building libmicrohttpd 1.0.1 ==="
+echo "=== Building libmicrohttpd 1.0.1 for $SDK ==="
 wget -O libmicrohttpd.tar.gz https://ftp.gnu.org/gnu/libmicrohttpd/libmicrohttpd-1.0.1.tar.gz
 tar xf libmicrohttpd.tar.gz
 cd libmicrohttpd-1.0.1
@@ -25,8 +31,8 @@ cd libmicrohttpd-1.0.1
             --disable-shared --enable-static \
             --disable-curl --disable-examples \
             --disable-dependency-tracking \
-            --prefix=/opt/ps5-payload-sdk/target
+            --prefix="$SDK/target"
 make -j$(nproc)
 make install
 
-echo "libmicrohttpd successfully built and installed!"
+echo "libmicrohttpd successfully built and installed into $SDK/target"

@@ -13,7 +13,7 @@
 #include <microhttpd.h>
 
 #include "wkali.h"
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
 #include "appcache_clean.h"
 #endif
 #include "http_server.h"
@@ -76,7 +76,7 @@ static void wk_get_model(char *out, size_t n) {
     while (j > 0 && out[j - 1] == ' ') out[--j] = 0;
 }
 
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
 #include "store_remap.h"
 #include "store_installer_page.h"
 #endif
@@ -164,14 +164,14 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
          * homescreen app is only installed/updated now - never on startup -
          * so a shortcut is never created for a partial cache. On failure the
          * server stays up and the page tells the user to re-run the installer. */
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
         /* Store build: remap NPXS40047 to TILE_URL instead of a homescreen app. */
         int err = store_remap_apply() < 0 ? -1 : 0;
 #else
         int err = wkali_install_app();
 #endif
         if (err == 0) {
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
             /* Refresh installed EL bootstrap files only; never run payloads. */
             (void)wkali_seed_launcher_files();
             (void)ps5_seed_power_elfs();
@@ -179,7 +179,7 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
             /* Keep :1022 up so installer-page can navigate to /app/index.html
              * and the home-icon deeplink works while this ELF is resident.
              * AppCache still enables offline relaunch later; /exit stops us. */
-            wkali_log("[WKALI] App installed. Keeping HTTP server on :%d\n",
+            wkali_log("[STORE] App installed. Keeping HTTP server on :%d\n",
                       WKALI_PORT);
             resp = MHD_create_response_from_buffer(strlen("OK"), (void *)"OK",
                                                    MHD_RESPMEM_PERSISTENT);
@@ -187,7 +187,7 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
             http_status = MHD_HTTP_OK;
             atomic_store(&install_completed, 1);
         } else {
-            wkali_log("[WKALI] App install failed (%d). Staying up.\n", err);
+            wkali_log("[STORE] App install failed (%d). Staying up.\n", err);
             const char *fail = "Install failed";
             resp = MHD_create_response_from_buffer(strlen(fail), (void *)fail,
                                                    MHD_RESPMEM_PERSISTENT);
@@ -195,8 +195,8 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
             http_status = MHD_HTTP_INTERNAL_SERVER_ERROR;
         }
     } else if (strcmp(url, ROUTE_EXIT) == 0) {
-        wkali_log("[WKALI] Exit requested by client. Stopping server...\n");
-#ifdef IGNIKEY_STORE
+        wkali_log("[STORE] Exit requested by client. Stopping server...\n");
+#ifdef STORE_BUILD
         /* Installer finished: soft-reboot so the next Store-tile open is
          * after a clean browser start (no stale in-memory AppCache). */
         ps5_reboot_console();
@@ -235,6 +235,15 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
         wk_get_model(model, sizeof(model));
         wk_get_lan_ip(ip, sizeof(ip));
         snprintf(body, sizeof(body), "{\"model\":\"%s\",\"ip\":\"%s\"}", model, ip);
+        resp = MHD_create_response_from_buffer(strlen(body), body, MHD_RESPMEM_MUST_COPY);
+        MHD_add_response_header(resp, "Content-Type", "application/json");
+        MHD_add_response_header(resp, "Cache-Control", "no-store");
+    } else if (strcmp(url, "/api/home") == 0) {
+        /* Close the browser and return to the home screen.
+         * Used by after_launch=home ("jailbreak, load launcher, close"). */
+        char body[64];
+        int rc = ps5_return_to_home();
+        snprintf(body, sizeof(body), rc == 0 ? "{\"ok\":true}" : "{\"ok\":false}");
         resp = MHD_create_response_from_buffer(strlen(body), body, MHD_RESPMEM_MUST_COPY);
         MHD_add_response_header(resp, "Content-Type", "application/json");
         MHD_add_response_header(resp, "Cache-Control", "no-store");
@@ -296,9 +305,9 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
             const char *oom = "500 Internal Server Error\n";
             resp = MHD_create_response_from_buffer(strlen(oom), (void *)oom, MHD_RESPMEM_PERSISTENT);
         }
-#ifdef IGNIKEY_STORE
+#ifdef STORE_BUILD
     } else if (strcmp(url, "/") == 0 || strcmp(url, "/index.html") == 0 ||
-               strcmp(url, "/ignikey.html") == 0 ||
+               strcmp(url, "/installer.html") == 0 ||
                strncmp(url, "/index.html?", 12) == 0) {
         resp = MHD_create_response_from_buffer(sizeof(STORE_INSTALLER_PAGE) - 1,
                                                (void *)STORE_INSTALLER_PAGE,
@@ -432,20 +441,20 @@ enum MHD_Result http_on_request(void *cls, struct MHD_Connection *conn,
                "PlayStation 5/" used to serve the full manifest. */
             if (strcmp(url, ROUTE_CACHE_MANIFEST) == 0) {
                 if (strcmp(WKALI_FORCE_EXPLOIT, "umtx2") == 0) {
-                    wkali_log("[WKALI] FORCE_EXPLOIT is set, caching umtx2 exploit\n");
+                    wkali_log("[STORE] FORCE_EXPLOIT is set, caching umtx2 exploit\n");
                 } else if (strcmp(WKALI_FORCE_EXPLOIT, "poops") == 0) {
-                    wkali_log("[WKALI] FORCE_EXPLOIT is set, caching poops exploit\n");
+                    wkali_log("[STORE] FORCE_EXPLOIT is set, caching poops exploit\n");
                 } else if (strcmp(WKALI_FORCE_EXPLOIT, "p2jb") == 0) {
-                    wkali_log("[WKALI] FORCE_EXPLOIT is set, caching p2jb exploit\n");
+                    wkali_log("[STORE] FORCE_EXPLOIT is set, caching p2jb exploit\n");
                 } else if (strcmp(WKALI_FORCE_EXPLOIT, "relapse") == 0) {
-                    wkali_log("[WKALI] FORCE_EXPLOIT is set, caching relapse exploit\n");
+                    wkali_log("[STORE] FORCE_EXPLOIT is set, caching relapse exploit\n");
                 } else {
                     if (fw <= 0.0f) {
-                        wkali_log("[WKALI] Firmware unknown, serving FULL cache manifest\n");
+                        wkali_log("[STORE] Firmware unknown, serving FULL cache manifest\n");
                     } else if (fw <= 5.50f) {
-                        wkali_log("[WKALI] Detected firmware %.2f <= 5.50, caching umtx2 exploit\n", fw);
+                        wkali_log("[STORE] Detected firmware %.2f <= 5.50, caching umtx2 exploit\n", fw);
                     } else {
-                        wkali_log("[WKALI] Detected firmware %.2f > 5.50, caching relapse exploit\n", fw);
+                        wkali_log("[STORE] Detected firmware %.2f > 5.50, caching relapse exploit\n", fw);
                     }
                 }
 

@@ -6,40 +6,40 @@
     "localizedParameters": {
         "defaultLanguage": "en-US",
         "en-US": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "en-GB": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "es-ES": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "fr-FR": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "de-DE": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "pt-BR": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "ru-RU": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "ja-JP": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "zh-Hans": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "it-IT": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "ar-AE": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         },
         "he-IL": {
-            "titleName": "WK Store"
+            "titleName": "[[BRAND_NAME_PLACEHOLDER]]"
         }
     }
 }

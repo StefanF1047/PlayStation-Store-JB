@@ -287,169 +287,152 @@ W.autoloadElfName = function () {
     return 'pldmgr.elf';
   }
   if (W.state.forceAutoloadName) return W.state.forceAutoloadName;
-  /* Tip is NEVER in the Relapse/Poops/umtx2 chain. Chain = JB + elfldr only
-   * (~1s Y2JB). Store does not start tip or open Elf Launcher after JB. */
+  /* The chain only produces the jailbreak + elfldr. The page itself sends
+   * pldmgr.elf afterwards (see loadPldmgrAndClose). */
   return 'wkal-skip';
 };
 
-W.launcher.openElfLauncherPage = function () {
+/* Any HTTP response from the port (even 404) means something is listening. */
+W.launcher.probeAnyPort = function (port, ms, cb) {
+  var done = false;
+  function fin(ok) { if (done) return; done = true; try { cb(!!ok); } catch (e) {} }
+  try {
+    fetch('http://127.0.0.1:' + port + '/?t=' + Date.now(),
+      { method: 'GET', mode: 'no-cors', cache: 'no-store' })
+      .then(function () { fin(true); })
+      .catch(function () { fin(false); });
+  } catch (e) { fin(false); return; }
+  setTimeout(function () { fin(false); }, typeof ms === 'number' ? ms : 900);
+};
+
+W.launcher.waitLauncherUp = function (port, totalMs, cb) {
+  var start = Date.now();
+  (function tick() {
+    W.launcher.probeAnyPort(port, 900, function (up) {
+      if (up) { cb(true); return; }
+      if (Date.now() - start >= totalMs) { cb(false); return; }
+      setTimeout(tick, 500);
+    });
+  })();
+};
+
+/* elfldr loads a payload from the console path (the installer seeds pldmgr
+ * there). This is the path the original launcher flow used. */
+W.launcher.tipDisk = function (cb) {
+  try {
+    var img = new Image();
+    img.onload = img.onerror = function () { try { cb && cb(); } catch (e) {} };
+    img.src = 'http://127.0.0.1:9021/data/elf-launcher/elf-launcher.elf?t=' + Date.now();
+    W.elboot = W.elboot || {};
+    W.elboot._img = img;
+    setTimeout(function () { try { cb && cb(); } catch (e) {} }, 1500);
+  } catch (e) { try { cb && cb(); } catch (e2) {} }
+};
+
+/* Ask elfldr (:9021) to load the Store-bundled payload by URL. */
+W.launcher.tipBundled = function (name, cb) {
+  var called = false;
+  function done() { if (called) return; called = true; try { cb && cb(); } catch (e) {} }
+  try {
+    var m = String(location.pathname || '').match(/^(.*\/app\/[^/]+\/)/);
+    var base = (location.origin || '') + (m ? m[1] : '/app/');
+    var abs = base + 'payloads/' + name;
+    var img = new Image();
+    img.onload = img.onerror = done;
+    img.src = 'http://127.0.0.1:9021/?uri=' + encodeURIComponent(abs) + '&t=' + Date.now();
+    W.elboot = W.elboot || {};
+    W.elboot._img2 = img;
+    setTimeout(done, 1500);
+  } catch (e) { done(); }
+};
+
+/* Close the browser and return to the PS5 home screen. The native request
+ * (ShellUIUtil navigateToHome) is what actually dismisses WebKit cleanly;
+ * window.close() is only a fallback. */
+W.launcher.returnHome = function (cb) {
+  var done = false;
+  function fin(ok) { if (done) return; done = true; try { cb && cb(!!ok); } catch (e) {} }
+  try {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/home?t=' + Date.now(), true);
+    xhr.timeout = 4000;
+    xhr.onload = function () { fin(xhr.status === 200); };
+    xhr.onerror = xhr.ontimeout = function () { fin(false); };
+    xhr.send();
+  } catch (e) { fin(false); }
+  setTimeout(function () { try { window.close(); } catch (e) {} }, 900);
+};
+
+/* Post-jailbreak: hand pldmgr.elf to elfldr (:9021) and close the browser once
+ * it is actually listening on :8084. The payload is 2.8 MB, so closing right
+ * after the request would abort the load. */
+W.launcher.loadPldmgrAndClose = function () {
   if (W.state.launcherHttpOpenStarted) return;
   W.state.launcherHttpOpenStarted = true;
-  try { if (W.beginPayloadLoading) W.beginPayloadLoading('open-elf-launcher'); } catch (ePlO) {}
+  var name = W.POST_JB_PAYLOAD || 'pldmgr.elf';
+  var PORT = 8084;
+  var MAX_MS = 12000;
 
-  function ready(alreadyUp) {
-    try { if (W.uiSetPayload) W.uiSetPayload('plLauncher', 'READY', true); } catch (eM) {}
-    /* Do not trigger-auto, reset boot-auto, scan files, or send user payloads.
-     * EL owns /data/elf-launcher/auto.list and its once-per-boot state. */
-    W.launcher.browserWantsOpen(function (wantOpen) {
-      if (!wantOpen) {
-        W.uiLog('Elf Launcher ready in background; payload selection belongs to EL', 'success');
-        if (W.els.progressLabel) W.els.progressLabel.textContent = W.t('elfReady') || 'Elf Launcher ready';
-        if (W.els.nextTile) {
-          W.els.nextTile.hidden = false;
-          var d = W.els.nextTile.querySelector('.d');
-          if (d) d.textContent = 'http://127.0.0.1:1000  ?  ' + (W.t('openLaterHint') || 'Leave closed');
-        }
-        if (W.ui && W.ui.toast) W.ui.toast(W.t('elfReady') || 'Elf Launcher ready', W.t('openLaterHint') || 'Leave closed', 'ok');
-        var oo = document.getElementById('openLauncherOnly');
-        if (oo) oo.hidden = false;
-        return;
+  function setMsg(text) {
+    try {
+      if (W.els.successMsg) {
+        W.els.successMsg.hidden = false;
+        W.els.successMsg.textContent = text;
       }
-      if (W.uiSetPayload) W.uiSetPayload('plLauncher', 'opening', true);
-      W.launcher.openWhenHttpReady(W.consoleHttpBase(1000), 'elf-launcher', '1000',
-        alreadyUp ? 6000 : 10000, alreadyUp ? 0 : 100, alreadyUp ? 0 : 100, true);
+      if (W.els.statusMsg) W.els.statusMsg.textContent = '';
+    } catch (eMsg) {}
+  }
+
+  function closeNow(reason) {
+    setMsg('Payload Manager running - returning home');
+    W.uiLog('[launch] ' + reason + ' - closing the browser', 'info');
+    W.launcher.returnHome(function (ok) {
+      W.uiLog(ok ? '[launch] returning home' : '[launch] home request failed (close manually)',
+        ok ? 'success' : 'warning');
     });
   }
-  if (W.state.elfHttpAlreadyUp) { ready(true); return; }
-  /* Tip always starts AFTER the chain (never as Relapse autoload). Prefer the
-   * installed EL on disk; fall back to a one-shot resend of the bundled tip. */
-  /* If companion/openNow already tipped this run, just wait. Never send twice. */
-  if (W.elboot && W.elboot._sent) {
-    /* already tipped; wait :1000 */
-    W.elboot.waitUp(12000, function (up) {
-      if (up) W.state.elfHttpAlreadyUp = true;
-      ready(!!up);
+
+  function fail(reason) {
+    /* Still close (the payload was already handed to elfldr), but say why so
+     * a missing :8084 UI is visible instead of silent. */
+    setMsg('Payload Manager did not answer on :' + PORT + ' - returning home');
+    W.uiLog('[launch] ' + reason + ' - closing anyway', 'warning');
+    setTimeout(function () {
+      W.launcher.returnHome(function (ok) {
+        W.uiLog(ok ? '[launch] returning home' : '[launch] home request failed (close manually)',
+          ok ? 'success' : 'warning');
+      });
+    }, 1500);
+  }
+
+  W.launcher.probeAnyPort(PORT, 900, function (alreadyUp) {
+    if (alreadyUp) { closeNow('already running on :' + PORT); return; }
+
+    setMsg('Starting Payload Manager...');
+    W.uiLog('[launch] sending ' + name + ' to elfldr :9021 ...', 'info');
+    W.launcher.tipDisk();                       /* console copy (install seeds it) */
+    setTimeout(function () {                    /* bundled copy as a fallback */
+      W.launcher.tipBundled(name);
+    }, 500);
+
+    W.launcher.waitLauncherUp(PORT, MAX_MS, function (up) {
+      if (up) closeNow(name + ' is up on :' + PORT);
+      else fail(name + ' did not answer on :' + PORT);
     });
-    return;
-  }
-  /* Tip after elfldr (out of chain). Wait until :1000 answers before navigate
-   * so the Store/JB page is not closed while EL is still loading. */
-  /* tip after elfldr */
-  if (!W.state.elInstalledFirst) {
-    /* resend bundled tip */
-    try { W.launcher.requestResendAutoload('elf-launcher.elf'); } catch (eR) {}
-    try { if (W.elboot) W.elboot._sent = true; } catch (eS) {}
-    ready(false);
-    return;
-  }
-  W.elboot.sendInstalled();
-  W.elboot.waitUp(12000, function (up) {
-    if (up) {
-      W.state.elfHttpAlreadyUp = true;
-      ready(true);
-      return;
-    }
-    /* tip retry quiet */
-    ready(false);
   });
 };
 
-W.launcher.openPayloadManagerPage = function () {
-  if (W.state.launcherHttpOpenStarted) return;
-  W.state.launcherHttpOpenStarted = true;
-  try {
-    if (W.els.nextTile) {
-      W.els.nextTile.hidden = false;
-      try { if (W.uiSetPayload) W.uiSetPayload('plLauncher','OPEN',true); } catch (ePL) {}
-      var ico = document.getElementById('nextTileIco');
-      var title = document.getElementById('nextTileTitle');
-      var url = document.getElementById('nextTileUrl');
-      if (ico) ico.src = 'elf-launcher-icon.png';
-      if (title) title.textContent = (W.t && W.t('payloadManager')) ? ('Opening ' + W.t('payloadManager') + '...') : 'Opening Payload Manager...';
-      if (url) url.textContent = 'http://127.0.0.1:8084';
-    }
-  } catch (eTile) {}
-  W.uiLog('pldmgr.elf path - opening :8084 when ready ...', 'success');
-  W.launcher.openWhenHttpReady(W.consoleHttpBase(8084), 'payload-manager', '8084',
-    45000, 600, 300, true);
-};
-
+/* Every post-jailbreak path ends here. */
 W.launcher.openCompanionPage = function () {
-  if (W.state.launcherHttpOpenStarted) return;
-  W.state.launcherHttpOpenStarted = true;
-  var FIRST = 50;
-  var SETTLE = 50;
-  function mark(tag, msg, kind) {
-    try { if (W.uiSetPayload) W.uiSetPayload('plLauncher', tag || 'READY', true); } catch (eM) {}
-    try { W.uiLog(msg, kind || 'success'); } catch (eL) {}
-  }
-  function afterTip(alreadyUp) {
-    /* Tip done; openElfLauncherPage respects browserWantsOpen (closed = no navigate). */
-    W.state.launcherHttpOpenStarted = false;
-    if (alreadyUp) W.state.elfHttpAlreadyUp = true;
-    W.launcher.openElfLauncherPage();
-  }
-  function startTip() {
-    W.launcher.probeElfLauncherHttp(function (up) {
-      if (up || W.state.elfHttpAlreadyUp) {
-        mark('READY', 'Elf Launcher ready', 'success');
-        afterTip(true);
-        return;
-      }
-      try {
-        W.elboot.sendInstalled(null, true);
-      } catch (eTip) {
-        mark('WAIT', 'start failed', 'warning');
-        return;
-      }
-      try { if (W.uiSetPayload) W.uiSetPayload('plElfldr', 'READY', true); } catch (eE) {}
-      mark('START', 'Starting Elf Launcher...', 'info');
-      W.elboot.waitUp(12000, function (up2) {
-        if (up2) W.state.elfHttpAlreadyUp = true;
-        afterTip(!!up2);
-      });
-    });
-  }
-  /* open EL shortly */
-  setTimeout(startTip, FIRST + SETTLE);
+  W.launcher.loadPldmgrAndClose();
 };
 
-
+/* Manual open button (hidden in this build) does the same thing. */
 W.launcher.openNow = function () {
   W.state.launcherHttpOpenStarted = false;
-  var wantPm = (W.state.forceAutoloadName === 'pldmgr.elf')
-    || (W.state.launcherChoice === W.CHOICE_PAYLOAD_MANAGER)
-    || (W.getLauncherChoice && W.getLauncherChoice() === W.CHOICE_PAYLOAD_MANAGER);
-  if (wantPm) {
-    W.launcher.openPayloadManagerPage();
-    return;
-  }
-
-  function fail(msg) {
-    W.uiLog(msg, 'error');
-    if (W.ui && W.ui.toast) W.ui.toast(W.t('elfNotRunning') || 'Elf Launcher', msg, 'bad');
-  }
-  function openUp() {
-    W.state.elfHttpAlreadyUp = true;
-    if (W.ui && W.ui.toast) W.ui.toast(W.t('openingElf') || 'Opening Elf Launcher...', '', 'ok');
-    W.launcher.openElfLauncherPage();
-  }
-
-
-  /* 1) Already running (:1000) = installed launcher UI. */
-  W.launcher.probeElfLauncherHttp(function (up) {
-    if (up) { openUp(); return; }
-
-    /* One bootstrap request only. A slow payload queue is not a launch failure. */
-    /* :1000 down; tip EL */
-    W.elboot.sendInstalled(function () {
-      W.elboot.waitUp(12000, function (up2) {
-        if (up2) openUp();
-        else fail('Elf Launcher is not ready. Wait for its payloads, or reinstall WK Store if its executable is missing.');
-      });
-    });
-  });
+  W.launcher.loadPldmgrAndClose();
 };
+
 
 W.launcher.onAutoloadResult = function (data) {
   W.state.autoloadPending = false;
@@ -496,7 +479,7 @@ W.launcher.onAutoloadResult = function (data) {
   setTimeout(function () {
     if (!data.ok) return;
     if (W.state.updateOnlyMode || W.state.pendingSelfUpdate) {
-      W.uiLog('[update] skipping companion open - WK install only', 'info');
+      W.uiLog('[update] skipping companion open - update install only', 'info');
       return;
     }
     /* After elfldr: tip+open Elf Launcher (out of chain). */
@@ -505,7 +488,7 @@ W.launcher.onAutoloadResult = function (data) {
 };
 
 
-/* EL bootstrap only. No WK mirror, payload queue, auto trigger, or update. */
+/* EL bootstrap only. No mirror, payload queue, auto trigger, or update. */
 W.elboot = W.elboot || {};
 W.elboot.installedFirstOk = function (chain) {
   return chain === 'relapse' || chain === 'wobkot' || chain === 'poops' || chain === 'p2jb';
@@ -528,12 +511,13 @@ W.elboot.sendInstalled = function (cb, force) {
   }
   /* Also tip Store-bundled ELF via ?uri= so a deleted tile/disk ELF still starts. */
   try {
+    var bundledName = W.POST_JB_PAYLOAD || 'pldmgr.elf';
     var base = (location.origin || '') + (location.pathname || '').replace(/\/[^/]*$/, '/');
-    var abs = base + 'payloads/elf-launcher.elf';
-    if (W.state && W.state.APP_BASE) abs = W.state.APP_BASE + 'payloads/elf-launcher.elf';
+    var abs = base + 'payloads/' + bundledName;
+    if (W.state && W.state.APP_BASE) abs = W.state.APP_BASE + 'payloads/' + bundledName;
     try {
       var m = String(location.pathname || '').match(/^(.*\/app\/[^/]+\/)/);
-      if (m) abs = (location.origin || '') + m[1] + 'payloads/elf-launcher.elf';
+      if (m) abs = (location.origin || '') + m[1] + 'payloads/' + bundledName;
     } catch (eP) {}
     var tip = 'http://127.0.0.1:9021/?uri=' + encodeURIComponent(abs) + '&t=' + Date.now();
     /* also tip bundled */

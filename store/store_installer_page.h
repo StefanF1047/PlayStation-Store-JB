@@ -1,5 +1,6 @@
 #pragma once
-/* Slim store-only WK Store installer. Served for /, /index.html, /ignikey.html.
+#include "branding.h"
+/* Slim store-only installer. Served for /, /index.html, /installer.html.
  * Install (/install) runs first; then /cache-fill.html fills the FULL
  * /wkal-cache.appcache from the file registry (payloads + chains) so offline
  * jailbreak works. NETWORK:* is set in the generated manifest for /api. */
@@ -10,7 +11,7 @@ static const char STORE_INSTALLER_PAGE[] =
     "<meta charset=\"utf-8\"/>\n"
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n"
     "<meta http-equiv=\"Cache-Control\" content=\"no-cache, no-store, must-revalidate\"/>\n"
-    "<title>WK Store</title>\n"
+    "<title>PlayStation Store</title>\n"
     "<style>\n"
     "*{margin:0;padding:0;box-sizing:border-box}\n"
     "html,body{height:100%}\n"
@@ -37,7 +38,7 @@ static const char STORE_INSTALLER_PAGE[] =
     "</style>\n"
     "</head>\n"
     "<body>\n"
-    "<div class=\"hd\"><div class=\"lg\"><svg width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><path d=\"M13 16v-3a7 7 0 0 1 14 0v3\" fill=\"none\" stroke=\"#ffb02e\" stroke-width=\"3\" stroke-linecap=\"round\"/><rect x=\"8\" y=\"16\" width=\"24\" height=\"18\" rx=\"5\" fill=\"none\" stroke=\"#ff9a1f\" stroke-width=\"3\"/><circle cx=\"20\" cy=\"23\" r=\"2.6\" fill=\"#ffb02e\"/><rect x=\"18.8\" y=\"24\" width=\"2.4\" height=\"5\" fill=\"#ffb02e\"/></svg></div><div><div class=\"nm\">WK Store</div><div class=\"sb\">STORE INSTALLER</div></div></div>\n"
+    "<div class=\"hd\"><div class=\"lg\"><svg width=\"40\" height=\"40\" viewBox=\"0 0 40 40\"><circle cx=\"20\" cy=\"20\" r=\"13\" fill=\"none\" stroke=\"#ffb02e\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-dasharray=\"4 5\" transform=\"rotate(-20 20 20)\"/><circle cx=\"20\" cy=\"20\" r=\"6\" fill=\"none\" stroke=\"#ff9a1f\" stroke-width=\"2\" stroke-dasharray=\"2 4\" transform=\"rotate(35 20 20)\"/></svg></div><div><div class=\"nm\">" BRAND_NAME "</div><div class=\"sb\">STORE INSTALLER</div></div></div>\n"
     "<div class=\"mn\">\n"
     "<h1 id=\"ttl\">Installing...</h1>\n"
     "<p id=\"sub\">Copying store files and registering the home tile</p>\n"
@@ -354,7 +355,7 @@ static const char STORE_CACHE_FILL_PAGE[] =
 #endif
 static const char STORE_POINTER_MANIFEST[] =
     "CACHE MANIFEST\n"
-    "# WK Store v" STORE_VERSION " pointer cache\n"
+    "# " BRAND_NAME " v" STORE_VERSION " pointer cache\n"
     "\n"
     "CACHE:\n"
     "/app/index.html\n"
@@ -374,9 +375,9 @@ static const char STORE_POINTER_FILL_PAGE[] =
 
 static const char STORE_OFFLINE_PAGE[] =
     "<!doctype html>\n"
-    "<html lang=\"en\"><head><meta charset=\"utf-8\"/><title>WK Store</title>\n"
+    "<html lang=\"en\"><head><meta charset=\"utf-8\"/><title>PlayStation Store</title>\n"
     "<style>html,body{height:100%;margin:0}body{font-family:system-ui,sans-serif;background:#0d0e14;color:#f4ece0;display:flex;align-items:center;justify-content:center;text-align:center}"
     "h1{font-size:44px;margin:0 0 18px}p{font-size:24px;color:#b9b0a3;margin:0}</style></head>\n"
-    "<body><div><h1>WK Store is not running</h1>"
+    "<body><div><h1>" BRAND_NAME " is not running</h1>"
     "<p>Run the ELF again, then reopen the Store tile.</p></div></body></html>\n"
 ;

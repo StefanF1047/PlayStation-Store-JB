@@ -262,7 +262,7 @@ int tile_edit_app_db(char *concept_out, size_t concept_cap)
                  "'$._path_pic0_info', %lld), "
                  "'$._path_pic0_info_time_stamp', %d) "
                  "WHERE titleId = ?",
-                 (long long)TILE_PIC0_PATH_FLAG, TILE_PIC0_PATH_TS);
+                 (long long)TILE_PIC0_WRITE_FLAG, TILE_PIC0_WRITE_TS);
         if (sqlite3_prepare_v2(db, sql, -1, &st, NULL) != SQLITE_OK) {
             fprintf(stderr, "prepare failed: %s\n", sqlite3_errmsg(db));
             goto fail;
@@ -312,9 +312,9 @@ int tile_edit_app_db(char *concept_out, size_t concept_cap)
     /* Best-effort string patch of ConceptInfoJson hub + display name. */
     {
         sqlite3_stmt *st = NULL;
-        /* Also replace leftover AUTO_JB from v4–v9 so hub/detail big title
-         * (ConceptInfoJson concept_name*) becomes IgniKey, not only the
-         * small under-tile label from titleName columns. */
+        /* Also replace leftover AUTO_JB from older builds so hub/detail big
+         * title (ConceptInfoJson concept_name*) becomes TILE_LABEL, not only
+         * the small under-tile label from titleName columns. */
         const char *sql =
             "UPDATE tbl_conceptmetadata SET ConceptInfoJson = "
             "replace(replace(replace(ConceptInfoJson, "
@@ -340,6 +340,7 @@ int tile_edit_app_db(char *concept_out, size_t concept_cap)
 
 
     /* ConceptInfoJson field_list path_pic0 flags (same shape as Explore). */
+#if !STOCK_HOVER_ART
     {
         sqlite3_stmt *st = NULL;
         const char *sql =
@@ -362,6 +363,83 @@ int tile_edit_app_db(char *concept_out, size_t concept_cap)
             sqlite3_finalize(st);
         }
     }
+#endif
+
+#if STOCK_HOVER_ART
+    /* Stock hover art: no local pic0/pic1. Put the stock pic values back so
+     * ShellUI draws its own background/detail art for this tile. */
+    args[0] = TILE_ID;
+    n = run_bound(db,
+        "UPDATE tbl_contentinfo SET pic0Info = NULL, "
+        "AppInfoJson = json_set(json_remove(AppInfoJson, '$.pic0Info', '$.pic1Info'), "
+        "'$._path_pic0_info', " TILE_PIC0_WRITE_FLAG_SQL ", "
+        "'$._path_pic0_info_time_stamp', " TILE_PIC0_WRITE_TS_SQL ") "
+        "WHERE titleId = ?",
+        args, 1);
+    if (n < 0) {
+        goto fail;
+    }
+    total += n;
+
+    args[0] = concept_out;
+    n = run_bound(db,
+        "UPDATE tbl_conceptmetadata SET pic0Info = NULL "
+        "WHERE localConceptId = ?",
+        args, 1);
+    if (n < 0) {
+        goto fail;
+    }
+    total += n;
+
+    /* ConceptInfoJson field_list: path_pic0_info back to stock values. */
+    {
+        sqlite3_stmt *st = NULL;
+        const char *sql =
+            "UPDATE tbl_conceptmetadata SET ConceptInfoJson = "
+            "replace(replace(ConceptInfoJson, "
+            "'{\"data\":-6917529027641081856,\"key\":\"path_pic0_info\",\"size\":8,\"type\":0}', "
+            "'{\"data\":0,\"key\":\"path_pic0_info\",\"size\":8,\"type\":0}'), "
+            "'{\"data\":315532800,\"key\":\"path_pic0_info_time_stamp\",\"size\":8,\"type\":0}', "
+            "'{\"data\":0,\"key\":\"path_pic0_info_time_stamp\",\"size\":8,\"type\":0}') "
+            "WHERE localConceptId = ?";
+        if (sqlite3_prepare_v2(db, sql, -1, &st, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(st, 1, concept_out, -1, SQLITE_STATIC);
+            if (sqlite3_step(st) == SQLITE_DONE) {
+                int ch = sqlite3_changes(db);
+                if (ch > 0) {
+                    printf("  %-36s %d\n", "ConceptInfoJson stock pic0", ch);
+                    total += ch;
+                }
+            }
+            sqlite3_finalize(st);
+        }
+    }
+
+    /* Per-account icon tables: drop the local pic0 path there too. */
+    {
+        sqlite3_stmt *it = NULL;
+        if (sqlite3_prepare_v2(db,
+                "SELECT name FROM sqlite_master WHERE type = 'table'",
+                -1, &it, NULL) == SQLITE_OK) {
+            while (sqlite3_step(it) == SQLITE_ROW) {
+                const char *tn = (const char *)sqlite3_column_text(it, 0);
+                char stmt[256];
+                if (!tn || strncmp(tn, "tbl_concepticoninfo_", 20) != 0)
+                    continue;
+                snprintf(stmt, sizeof(stmt),
+                         "UPDATE %s SET pic0Info = NULL WHERE localConceptId = ?", tn);
+                args[0] = concept_out;
+                n = run_bound(db, stmt, args, 1);
+                if (n < 0) {
+                    sqlite3_finalize(it);
+                    goto fail;
+                }
+                total += n;
+            }
+            sqlite3_finalize(it);
+        }
+    }
+#endif
 
     /* Ask shell not to refresh live/PSN detail over local pic0. */
     args[0] = TILE_ID;
@@ -469,25 +547,25 @@ int tile_edit_info_db(const char *concept_id)
     total += n;
 
     n = set_info_i64(db, "tbl_appinfo", "titleId", TILE_ID,
-                     "_path_pic0_info", TILE_PIC0_PATH_FLAG);
+                     "_path_pic0_info", TILE_PIC0_WRITE_FLAG);
     if (n < 0) {
         goto fail;
     }
     total += n;
     n = set_info_i64(db, "tbl_appinfo", "titleId", TILE_ID,
-                     "_path_pic0_info_time_stamp", TILE_PIC0_PATH_TS);
+                     "_path_pic0_info_time_stamp", TILE_PIC0_WRITE_TS);
     if (n < 0) {
         goto fail;
     }
     total += n;
     n = set_info_i64(db, "tbl_conceptinfo", "local_concept_id", concept_id,
-                     "path_pic0_info", TILE_PIC0_PATH_FLAG);
+                     "path_pic0_info", TILE_PIC0_WRITE_FLAG);
     if (n < 0) {
         goto fail;
     }
     total += n;
     n = set_info_i64(db, "tbl_conceptinfo", "local_concept_id", concept_id,
-                     "path_pic0_info_time_stamp", TILE_PIC0_PATH_TS);
+                     "path_pic0_info_time_stamp", TILE_PIC0_WRITE_TS);
     if (n < 0) {
         goto fail;
     }

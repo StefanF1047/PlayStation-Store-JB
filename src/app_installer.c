@@ -185,8 +185,7 @@ static int install_title_if_missing(const char *title_id, const char *label,
   int err;
 
   if (title_installed(title_id)) {
-    wkali_log("[WKALI] %s already installed (%s). Not installing again.\n",
-              label, title_id);
+    /* Quiet: Relapse always tips EL after JB; no "already installed" spam. */
     return 0;
   }
 

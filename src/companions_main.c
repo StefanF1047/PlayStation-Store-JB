@@ -14,7 +14,7 @@
 
 int main(void) {
   syscall(SYS_thr_set_name, -1, "wkal-comp.elf");
-  wkali_log("[WKALI] Companion install (Elf Launcher)...\n");
+  /* quiet companion path */
   (void)wkali_install_companions();
   return 0;
 }

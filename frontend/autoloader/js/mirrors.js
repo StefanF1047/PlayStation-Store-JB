@@ -655,11 +655,12 @@ var p2jbLastSummaryText = '', p2jbEarlyLinesLogged = 0, p2jbLastPhaseStep = '', 
     if (!doc || !W.state.chainStarted) return;
     var frameUrl = '';
     try { frameUrl = W.els.exploit.contentWindow.location.href; } catch (eU) { }
+    var expectDir = (W.state.exploitMode === 'wobkot') ? 'wobkot/' : 'relapse/';
     if (frameUrl && frameUrl !== 'about:blank' && doc.readyState === 'complete'
-      && frameUrl.indexOf('relapse/') === -1 && !mirrorRelapse.badUrl) {
+      && frameUrl.indexOf(expectDir) === -1 && !mirrorRelapse.badUrl) {
       mirrorRelapse.badUrl = frameUrl;
       setRelapseStatus('Kernel iframe did not load');
-      W.uiLog('[iframe] expected relapse/index.html, got ' + frameUrl, 'error');
+      W.uiLog('[iframe] expected ' + expectDir + 'index.html, got ' + frameUrl, 'error');
     }
     var lines = doc.querySelectorAll('#console > div');
     if (lines.length < relapseMirroredLines) {
@@ -735,7 +736,7 @@ var p2jbLastSummaryText = '', p2jbEarlyLinesLogged = 0, p2jbLastPhaseStep = '', 
 
 function mirrorExploit() {
     if (W.state.exploitMode === 'umtx2') { mirrorUmtx2(); return; }
-    if (W.state.exploitMode === 'relapse') { mirrorRelapse(); return; }
+    if (W.state.exploitMode === 'relapse' || W.state.exploitMode === 'wobkot') { mirrorRelapse(); return; }
     if (W.state.exploitMode === 'poops') { mirrorSlopkit(); return; }
     if (W.state.exploitMode === 'p2jb') { mirrorP2jb(); return; }
   }

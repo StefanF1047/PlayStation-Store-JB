@@ -390,7 +390,7 @@ W.startElapsed = function (atMs) {
 };
 
 W.formatChainLabel = function (chain) {
-  if (chain === 'relapse' || chain === 'umtx2' || chain === 'poops' || chain === 'p2jb') return chain;
+  if (chain === 'relapse' || chain === 'wobkot' || chain === 'umtx2' || chain === 'poops' || chain === 'p2jb') return chain;
   return chain || '-';
 };
 
@@ -424,15 +424,15 @@ W.beginPayloadLoading = function (reason) {
   if (W.state.payloadLoadingShown) return;
   W.state.payloadLoadingShown = true;
   try { W.uiSetPayload('plElfldr', 'READY', true); } catch (e1) {}
-  try { W.uiSetPayload('plLauncher', 'LOADING', true); } catch (e2) {}
-  var msg = (W.t && W.t('sendingPayload')) || 'Sending payload...';
+  try { W.uiSetPayload('plLauncher', 'OPENING', true); } catch (e2) {}
+  /* Never say Installing: post-JB only starts/opens the installed Elf Launcher. */
+  var msg = (W.t && W.t('openingElf')) || 'Opening Elf Launcher...';
   try {
     if (W.els && W.els.progressLabel) {
       W.els.progressLabel.hidden = false;
       W.els.progressLabel.textContent = msg;
     }
   } catch (e3) {}
-  /* No extra toast after elfldr; IP toast only. */
   try {
     W.uiLog('[payload] ' + (reason || 'elfldr ready') + ' - ' + msg, 'info');
   } catch (e5) {}

@@ -379,9 +379,9 @@ async function main(userlandRW) {
       // installed launcher as soon as it receives autoload success.
       try {
         const { waitForElfldr } = await import("./kexp.js");
-        log("waiting for elfldr on 9021 before installed launcher...", "info");
+        log("waiting for elfldr on 9021...", "info");
         await waitForElfldr(p, chain);
-        log("elfldr ready on 9021 - installed launcher may start", "info");
+        log("elfldr ready on 9021", "info");
         try {
           window.parent.postMessage({ type: "wkal", kind: "elfldr-ready-ip" }, "*");
         } catch (eIp) {}

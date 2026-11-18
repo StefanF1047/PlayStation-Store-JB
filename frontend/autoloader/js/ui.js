@@ -345,6 +345,7 @@ W.ui.syncChainUi = function () {
   var umtx = document.getElementById('chainUmtx2');
   var poops = document.getElementById('chainPoops');
   var relapse = document.getElementById('chainRelapse');
+  var wobkot = document.getElementById('chainWobkot');
   var auto = document.getElementById('chainAuto');
   var hint = W.els.chainHint;
   var start = document.getElementById('startJailbreak');
@@ -363,6 +364,7 @@ W.ui.syncChainUi = function () {
   /* umtx2 / Poops removed from UI; never show. */
   if (umtx) { umtx.hidden = true; umtx.disabled = true; }
   gate(relapse, 'relapse');
+  gate(wobkot, 'wobkot');
   if (poops) { poops.hidden = true; poops.disabled = true; }
   if (auto) { auto.hidden = true; auto.disabled = true; }
 
@@ -409,6 +411,7 @@ W.ui.syncChainUi = function () {
     if (pref === 'auto' && rec) hint.textContent = W.t('chainAutoPicks', { chain: W.formatChainLabel(rec) });
     else if (pref === 'poops') hint.textContent = W.t('chainPoopsHint');
     else if (pref === 'relapse') hint.textContent = W.t('chainRelapseHint');
+    else if (pref === 'wobkot') hint.textContent = W.t('chainWobkotHint');
     else if (pref === 'umtx2') hint.textContent = W.t('chainUmtx2Desc');
     else hint.textContent = '';
   }
@@ -719,7 +722,9 @@ W.ui.bindHome = function () {
   var i;
   for (i = 0; i < chainBtns.length; i++) {
     chainBtns[i].addEventListener('click', function () {
-      W.setChainPref('relapse');
+      var c = this.getAttribute('data-chain') || 'relapse';
+      if (this.disabled) return;
+      W.setChainPref(c);
       W.ui.syncChainUi();
     });
   }

@@ -212,11 +212,11 @@ W.launcher.probeElfLauncherHttp = function (cb) {
 };
 
 
-/* Elf Launcher "open page after jailbreak" Off => still start process, no browser navigate. */
+/* Elf Launcher "open page after jailbreak" Off => tip process only, no navigate.
+   Default closed when unknown so a race never opens a broken :1000 page. */
 W.launcher.browserWantsOpen = function (cb) {
   var done = false;
   function fin(open) { if (done) return; done = true; try { cb(!!open); } catch (e) {} }
-  /* Cookie / localStorage shared with Elf Launcher on same console. */
   var v = '';
   try { v = localStorage.getItem('ps5elfs-browser') || ''; } catch (e0) {}
   if (!v) {
@@ -230,7 +230,7 @@ W.launcher.browserWantsOpen = function (cb) {
   }
   if (v === 'closed') { fin(false); return; }
   if (v === 'open') { fin(true); return; }
-  /* Ask live launcher when up (CORS may allow). Default open if unknown. */
+  /* Unknown: ask live EL if up; otherwise stay closed (never force-open). */
   try {
     fetch('http://127.0.0.1:1000/browser-pref?t=' + Date.now(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
@@ -238,11 +238,11 @@ W.launcher.browserWantsOpen = function (cb) {
         if (j && typeof j.open === 'boolean') {
           try { localStorage.setItem('ps5elfs-browser', j.open ? 'open' : 'closed'); } catch (e2) {}
           fin(j.open);
-        } else fin(true);
+        } else fin(false);
       })
-      .catch(function () { fin(true); });
-  } catch (e3) { fin(true); return; }
-  setTimeout(function () { fin(true); }, 150);
+      .catch(function () { fin(false); });
+  } catch (e3) { fin(false); return; }
+  setTimeout(function () { fin(false); }, 400);
 };
 
 W.launcher.ensureRunning = function (cb) {
@@ -317,7 +317,7 @@ W.launcher.openElfLauncherPage = function () {
       }
       if (W.uiSetPayload) W.uiSetPayload('plLauncher', 'opening', true);
       W.launcher.openWhenHttpReady(W.consoleHttpBase(1000), 'elf-launcher', '1000',
-        alreadyUp ? 6000 : 10000, alreadyUp ? 100 : 250, alreadyUp ? 100 : 200, true);
+        alreadyUp ? 6000 : 10000, alreadyUp ? 0 : 100, alreadyUp ? 0 : 100, true);
     });
   }
   if (W.state.elfHttpAlreadyUp) { ready(true); return; }
@@ -325,7 +325,7 @@ W.launcher.openElfLauncherPage = function () {
    * installed EL on disk; fall back to a one-shot resend of the bundled tip. */
   /* If companion/openNow already tipped this run, just wait. Never send twice. */
   if (W.elboot && W.elboot._sent) {
-    W.uiLog('Elf Launcher already tipped this run; waiting for :1000', 'info');
+    /* already tipped; wait :1000 */
     W.elboot.waitUp(12000, function (up) {
       if (up) W.state.elfHttpAlreadyUp = true;
       ready(!!up);
@@ -334,9 +334,9 @@ W.launcher.openElfLauncherPage = function () {
   }
   /* Tip after elfldr (out of chain). Wait until :1000 answers before navigate
    * so the Store/JB page is not closed while EL is still loading. */
-  W.uiLog('Starting tip after elfldr (out of chain) ' + W.CONSOLE_LAUNCHER_URI, 'info');
+  /* tip after elfldr */
   if (!W.state.elInstalledFirst) {
-    W.uiLog('No installed-EL path; resending bundled tip once after elfldr', 'info');
+    /* resend bundled tip */
     try { W.launcher.requestResendAutoload('elf-launcher.elf'); } catch (eR) {}
     try { if (W.elboot) W.elboot._sent = true; } catch (eS) {}
     ready(false);
@@ -349,7 +349,7 @@ W.launcher.openElfLauncherPage = function () {
       ready(true);
       return;
     }
-    W.uiLog('Installed EL not up yet; openWhenHttpReady may resend tip once', 'info');
+    /* tip retry quiet */
     ready(false);
   });
 };
@@ -377,41 +377,40 @@ W.launcher.openPayloadManagerPage = function () {
 W.launcher.openCompanionPage = function () {
   if (W.state.launcherHttpOpenStarted) return;
   W.state.launcherHttpOpenStarted = true;
-  var FIRST = 400;
-  var SETTLE = 200;
+  var FIRST = 50;
+  var SETTLE = 50;
   function mark(tag, msg, kind) {
     try { if (W.uiSetPayload) W.uiSetPayload('plLauncher', tag || 'READY', true); } catch (eM) {}
     try { W.uiLog(msg, kind || 'success'); } catch (eL) {}
   }
-  function open1000(alreadyUp) {
-    /* Allow openElfLauncherPage to run after this out-of-chain tip. */
+  function afterTip(alreadyUp) {
+    /* Tip done; openElfLauncherPage respects browserWantsOpen (closed = no navigate). */
     W.state.launcherHttpOpenStarted = false;
     if (alreadyUp) W.state.elfHttpAlreadyUp = true;
     W.launcher.openElfLauncherPage();
   }
   function startTip() {
-    if (W.state.elfHttpAlreadyUp) {
-      mark('READY', 'Elf Launcher already up', 'success');
-      open1000(true);
-      return;
-    }
-    W.uiLog('disk tip background (out of chain, 400+200) /data/elf-launcher/elf-launcher.elf', 'info');
-    try {
-      W.elboot.sendInstalled();
-    } catch (eTip) {
-      W.uiLog('Disk tip failed: ' + (eTip && eTip.message ? eTip.message : eTip), 'warning');
-      mark('WAIT', 'disk tip failed', 'warning');
-      return;
-    }
-    try { if (W.uiSetPayload) W.uiSetPayload('plElfldr', 'READY', true); } catch (eE) {}
-    mark('READY', 'Elf Launcher tipped from disk (background)', 'success');
-    /* Wait for :1000 after disk tip, then navigate like v1.2.2 open path. */
-    W.elboot.waitUp(12000, function (up) {
-      if (up) W.state.elfHttpAlreadyUp = true;
-      open1000(!!up);
+    W.launcher.probeElfLauncherHttp(function (up) {
+      if (up || W.state.elfHttpAlreadyUp) {
+        mark('READY', 'Elf Launcher ready', 'success');
+        afterTip(true);
+        return;
+      }
+      try {
+        W.elboot.sendInstalled(null, true);
+      } catch (eTip) {
+        mark('WAIT', 'start failed', 'warning');
+        return;
+      }
+      try { if (W.uiSetPayload) W.uiSetPayload('plElfldr', 'READY', true); } catch (eE) {}
+      mark('START', 'Starting Elf Launcher...', 'info');
+      W.elboot.waitUp(12000, function (up2) {
+        if (up2) W.state.elfHttpAlreadyUp = true;
+        afterTip(!!up2);
+      });
     });
   }
-  W.uiLog('JB+elfldr done - tip in ' + (FIRST + SETTLE) + 'ms (out of chain)', 'info');
+  /* open EL shortly */
   setTimeout(startTip, FIRST + SETTLE);
 };
 
@@ -442,7 +441,7 @@ W.launcher.openNow = function () {
     if (up) { openUp(); return; }
 
     /* One bootstrap request only. A slow payload queue is not a launch failure. */
-    W.uiLog('Elf Launcher :1000 down - starting installed launcher', 'info');
+    /* :1000 down; tip EL */
     W.elboot.sendInstalled(function () {
       W.elboot.waitUp(12000, function (up2) {
         if (up2) openUp();
@@ -467,9 +466,9 @@ W.launcher.onAutoloadResult = function (data) {
     }
     var name = W.autoloadElfName();
     if (W.state.elInstalledFirst && (data.skipped || name === 'wkal-skip')) {
-      W.uiLog('Chain skipped bundled ELF - installed launcher starts next; no WK payload queue.', 'info');
+      /* tip EL next; quiet */
     } else if (data.skipped || name === 'wkal-skip') {
-      W.uiLog('No post-JB ELF sent (wkal-skip).', 'info');
+      /* wkal-skip quiet */
     } else if (!(Number(data.bytes) > 0)) {
       W.uiLog('Autoload ok but send missing/skipped (bytes=' + String(data.bytes) + ')', 'warning');
     } else {
@@ -480,7 +479,9 @@ W.launcher.onAutoloadResult = function (data) {
     W.recordRun('ok');
     if (W.selfupd && W.selfupd.maybeApplyPending) W.selfupd.maybeApplyPending('autoload-ok');
   } else {
-    W.uiLog('[ERROR] Autoload failed: ' + (data.why || 'unknown error'), 'error');
+    var why = data.why || 'unknown error';
+    W.uiLog('[ERROR] Autoload failed: ' + why, 'error');
+    try { if (W.ui && W.ui.toast) W.ui.toast(W.t('jailbreakFail'), why, 'bad'); } catch (eT) {}
     W.finishProgressFail(W.t('jailbreakFail'));
     W.recordRun('fail');
     /* Safe retry only if early stage. */
@@ -507,16 +508,16 @@ W.launcher.onAutoloadResult = function (data) {
 /* EL bootstrap only. No WK mirror, payload queue, auto trigger, or update. */
 W.elboot = W.elboot || {};
 W.elboot.installedFirstOk = function (chain) {
-  return chain === 'relapse' || chain === 'poops' || chain === 'p2jb';
+  return chain === 'relapse' || chain === 'wobkot' || chain === 'poops' || chain === 'p2jb';
 };
 W.elboot.sendInstalled = function (cb, force) {
   if (W.elboot._sent && !force) {
-    W.uiLog('Elf Launcher already tipped this run; not sending again', 'info');
+    /* already tipped this run */
     if (typeof cb === 'function') setTimeout(function () { try { cb(true); } catch (e0) {} }, 0);
     return;
   }
   var path = '/data/elf-launcher/elf-launcher.elf';
-  W.uiLog('tip installed Elf Launcher ' + path, 'info');
+  /* tip from disk */
   try {
     var img = new Image();
     img.src = 'http://127.0.0.1:9021' + path + '?t=' + Date.now();
@@ -524,8 +525,24 @@ W.elboot.sendInstalled = function (cb, force) {
     W.elboot._sent = true;
   } catch (eTip) {
     W.uiLog('tip failed: ' + (eTip && eTip.message ? eTip.message : eTip), 'warning');
-    if (typeof cb === 'function') try { cb(false); } catch (e) {}
-    return;
+  }
+  /* Also tip Store-bundled ELF via ?uri= so a deleted tile/disk ELF still starts. */
+  try {
+    var base = (location.origin || '') + (location.pathname || '').replace(/\/[^/]*$/, '/');
+    var abs = base + 'payloads/elf-launcher.elf';
+    if (W.state && W.state.APP_BASE) abs = W.state.APP_BASE + 'payloads/elf-launcher.elf';
+    try {
+      var m = String(location.pathname || '').match(/^(.*\/app\/[^/]+\/)/);
+      if (m) abs = (location.origin || '') + m[1] + 'payloads/elf-launcher.elf';
+    } catch (eP) {}
+    var tip = 'http://127.0.0.1:9021/?uri=' + encodeURIComponent(abs) + '&t=' + Date.now();
+    /* also tip bundled */
+    var img2 = new Image();
+    img2.src = tip;
+    W.elboot._img2 = img2;
+    W.elboot._sent = true;
+  } catch (eB) {
+    W.uiLog('bundled tip failed: ' + (eB && eB.message ? eB.message : eB), 'warning');
   }
   if (typeof cb === 'function') setTimeout(function () { try { cb(true); } catch (e2) {} }, 400);
 };

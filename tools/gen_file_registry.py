@@ -214,6 +214,10 @@ def umtx2_iframe_url(app_dir, autoload="payload.elf"):
 def relapse_iframe_url(app_dir, autoload="payload.elf"):
     return app_dir + "/relapse/index.html?autoload=" + autoload + "&v=1"
 
+def wobkot_iframe_url(app_dir, autoload="payload.elf"):
+    # Keep in sync with buildExploitUrls() in frontend/autoloader/js/chains.js.
+    return app_dir + "/wobkot/index.html?autoload=" + autoload + "&v=1"
+
 
 def poops_iframe_url(app_dir, autoload="payload.elf"):
     # Canonical PRODUCTION_QUERY from poops.html exactQuery (autoload ignored).
@@ -276,8 +280,12 @@ def manifest_omits_unused_tree(path):
     # while auto-start already armed the iframe timer - Relapse scripts never
     # arrived. Still served over HTTP from the file registry when needed.
     name = base0.rsplit("/", 1)[-1]
+    # Most multi-MB ELFs stay off AppCache (slow start). Exception: Wobkot has no
+    # elfldr_embedded.js like Relapse, so payloads/elfldr.elf MUST be cached or
+    # FALLBACK "/" returns HTML and prefetch dies with "not an ELF" in ~0.03s.
     if name.endswith(".elf") and "/relapse/" not in base0:
-        return True
+        if not (name == "elfldr.elf" and "/wobkot/payloads/" in base0):
+            return True
     if name in ("ps5-hero.jpg", "elf-launcher-icon.png"):
         return True
     # elfldr_embedded.js IS required to finish JB offline. Do not omit it; put
@@ -362,6 +370,7 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
     has_umtx2 = any("/umtx2/" in path for path in path_set)
     has_p2jb = any(path.endswith("/p2jb.html") or "/p2jb." in path for path in path_set)
     has_poops = any(path.endswith("/poops.html") or path.endswith("/poops.js") for path in path_set)
+    has_wobkot = any("/wobkot/" in path for path in path_set)
     for autoload in AUTOLOAD_ELF_NAMES:
         lines.append(relapse_iframe_url(app_dir, autoload))
         # Only list chain iframe URLs when that tree was staged. Ghost URLs 404
@@ -372,6 +381,8 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
             lines.append(p2jb_iframe_url(app_dir, autoload))
         if has_poops:
             lines.append(poops_iframe_url(app_dir, autoload))
+        if has_wobkot:
+            lines.append(wobkot_iframe_url(app_dir, autoload))
     lines += [
         url for url in collect_cachebust_urls(files)
         if not manifest_omits_unused_tree(url)
@@ -384,7 +395,8 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
         "*",
         "",
         "FALLBACK:",
-        "/ /index.html",
+        # No catch-all "/ /index.html": it turned failed binary fetches into HTML
+        # ("prefetched elfldr is not an ELF") even when NETWORK:* was set.
     ]
 
     # Fall back to <dir>/index.html for each subdirectory that has one
@@ -397,9 +409,13 @@ def build_manifest(files, version, build_time, app_dir, pointer_path, marker_pat
         if manifest_omits_unused_tree(path):
             continue
         directory = os.path.dirname(path)
-        # Never FALLBACK /relapse/ -> index.html: a failed module fetch would
-        # return HTML and Relapse would sit dead while the host timer runs.
-        if "/relapse" in directory:
+        # Never FALLBACK /relapse|wobkot|shared/ -> index.html: a failed
+        # binary/module fetch would return HTML (e.g. "not an ELF") and JB dies.
+        if "/relapse" in directory or "/wobkot" in directory or directory.endswith("/shared"):
+            continue
+        # Do not FALLBACK the versioned app root: /app/<ver>/foo?query misses
+        # would become index.html (broke Wobkot Start -> empty Store page).
+        if directory.count("/") <= 2:  # /app or /app/<ver>
             continue
         if directory != "/":
             lines.append(f"{directory}/ {path}")

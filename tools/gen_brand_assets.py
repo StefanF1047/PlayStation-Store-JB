@@ -37,6 +37,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 MASTER = os.path.join(ROOT, "assets", "home-photo.png")
@@ -239,6 +240,48 @@ def render_svg(svg, dest, width, height):
                                check=True, capture_output=True).stdout)
 
 
+def decorate_banner():
+    """Put the tile icon (rounded like an app tile) on the README banner."""
+    banner = os.path.join(ROOT, "docs", "img", "banner.png")
+    icon = master_path("icon")
+    if not (os.path.isfile(banner) and os.path.isfile(icon)):
+        return
+    size = 260
+    radius = int(size * 0.18)
+    if have_pillow():
+        from PIL import Image, ImageChops, ImageDraw
+
+        with Image.open(banner) as b, Image.open(icon) as ic:
+            base = b.convert("RGBA")
+            art = ic.convert("RGBA").resize((size, size), Image.LANCZOS)
+            mask = Image.new("L", (size, size), 0)
+            ImageDraw.Draw(mask).rounded_rectangle(
+                [0, 0, size - 1, size - 1], radius=radius, fill=255)
+            art.putalpha(ImageChops.multiply(art.getchannel("A"), mask))
+            base.alpha_composite(
+                art, ((base.width - size) // 2, (base.height - size) // 2))
+            base.convert("RGB").save(banner, "PNG", optimize=True)
+        return
+
+    tool = magick_command()
+    if not tool:
+        return
+    with tempfile.TemporaryDirectory(prefix="wkal-banner-") as tmp:
+        mask = os.path.join(tmp, "mask.png")
+        rounded = os.path.join(tmp, "icon.png")
+        subprocess.run(
+            [tool, "-size", f"{size}x{size}", "xc:none", "-fill", "white",
+             "-draw", f"roundrectangle 0,0,{size - 1},{size - 1},{radius},{radius}", mask],
+            check=True, capture_output=True)
+        subprocess.run(
+            [tool, icon + "[0]", "-resize", f"{size}x{size}", mask,
+             "-alpha", "off", "-compose", "CopyOpacity", "-composite", rounded],
+            check=True, capture_output=True)
+        subprocess.run(
+            [tool, banner, rounded, "-gravity", "center", "-composite", banner],
+            check=True, capture_output=True)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -284,6 +327,8 @@ def main(argv=None):
         else:
             dest = render_with_magick(src, rel_path, width, height)
         print(f"  {rel_path} ({width}x{height}, {os.path.getsize(dest)} bytes, {kind})")
+
+    decorate_banner()
 
     icon_src = master_path("icon")
     ico = ico_with_pillow(icon_src) if use_pillow else ico_with_magick(icon_src)

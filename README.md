@@ -1,8 +1,10 @@
-# PlayStation Store — local Store-tile jailbreak
+# PlayStation Store — Local Store Tile Jailbreak
 
 <p align="center">
   <img src="docs/img/banner.png" alt="PlayStation Store" width="720">
 </p>
+
+> ⚠️ **AI-generated project.** Code, art and docs were produced with an AI assistant. Original source code is available <a href="https://github.com/X-F1REBALL-X/wk-store">here</a>.
 
 A native PS5 payload that turns the built-in **Store** tile into a local page.
 Open the tile and it jailbreaks on its own, sends `pldmgr.elf` to elfldr, then
@@ -13,15 +15,15 @@ console during install, so it keeps working offline.
   `http://127.0.0.1:1022/app/index.html`.
 - **Terminal UI.** The page is a black, append-only log — no buttons, no cards.
   Text appears as the jailbreak progresses.
-- **Zero interaction.** Relapse is forced, auto-start is on, and the page
+- **Zero interaction.** Relapse is used, auto-start is on, and the page
   returns to the home screen by itself when the payload is loaded.
-- **Two chains.** Wobkot (6.00 – 13.60) and Relapse (7.00 – 13.60) — this build
-  always runs Relapse.
-- **Offline.** The app and its chain are AppCache'd during install.
+- **Offline.** The app and its chain are cached during install.
 - **Reversible.** A separate Restore ELF puts the original PlayStation Store
   tile back.
-- **Yours.** Product name, artwork and ELF names come from `branding.json`, so
-  you never have to edit source code to make it your own.
+
+<p align="center">
+  <img src="docs/screenshots/terminal.png" alt="Terminal UI on the PS5" width="860">
+</p>
 
 > This project is a fork of
 > [wk-store](https://github.com/X-F1REBALL-X/wk-store) (GPLv3). All upstream

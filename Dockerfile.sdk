@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     sudo \
     unzip \
     librsvg2-bin \
+    imagemagick \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up Clang 18 as default

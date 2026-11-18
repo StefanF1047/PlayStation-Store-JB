@@ -8,11 +8,14 @@ Turns the PS5 Store tile into WK Store: open the tile, start the jailbreak, and 
 
 ## Quick start
 
-1. Send [`WK_Store_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.4.elf) to elfldr on port `9021`.
-2. Wait for the install to finish. The console reboots on its own after Store finishes.
-3. Open the **Store** tile and press **Start Jailbreak**.
+**If WK Store is already installed, send Restore first.** That is required for a clean, stable install.
 
-If an older WK Store is already installed, send Restore first, reboot, open elfldr again, then install 1.2.4.
+1. Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`, then reboot and open elfldr again.
+2. Send [`WK_Store_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.4.elf) to elfldr on port `9021`.
+3. Wait for the install to finish. The console reboots on its own after Store finishes.
+4. Open the **Store** tile and press **Start Jailbreak**.
+
+Fresh console with no WK Store yet: skip step 1 and start from step 2.
 
 ## Features
 
@@ -51,6 +54,21 @@ Wobkot jailbreak is about 0.6s on a good run.
 
 ## Installation
 
+Always send payloads one at a time. Wait between Restore and Store.
+
+### Already have WK Store installed
+
+Restore is required before installing again. Skipping it can leave a bad or unstable install.
+
+1. Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`.
+2. Reboot the console (Restore does not reboot by itself).
+3. Open elfldr again on port `9021`.
+4. Send [`WK_Store_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.4.elf).
+5. Wait until install finishes. Store reboots the console by itself.
+6. Open the **Store** tile and press **Start Jailbreak**.
+
+### Fresh install (no WK Store yet)
+
 1. Send [`WK_Store_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_V1.2.4.elf) to elfldr on port `9021`.
 2. Wait until install finishes. Store reboots the console by itself.
 3. Open the **Store** tile and press **Start Jailbreak**.
@@ -58,6 +76,8 @@ Wobkot jailbreak is about 0.6s on a good run.
 ## Restore the PlayStation Store tile
 
 Send [`WK_Store_Restore_V1.2.4.elf`](https://github.com/X-F1REBALL-X/wk-store/releases/latest/download/WK_Store_Restore_V1.2.4.elf) to elfldr on port `9021`, then reboot. Restore does not reboot on its own.
+
+Use the same Restore before every Store upgrade when WK Store is already installed.
 
 ## Building from source
 

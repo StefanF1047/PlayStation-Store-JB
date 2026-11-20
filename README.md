@@ -1,4 +1,4 @@
-# Jailbreak Store
+# PlayStation-Store-JB
 
 PS5 payload that rebrands the PlayStation Store (`NPXS40047`) into a
 custom launcher.

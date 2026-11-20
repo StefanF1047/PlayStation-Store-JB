@@ -11,8 +11,7 @@ and you will lose all your PS4 FPKGs.**
 Running `PlayStation-Store-JB.elf` on a jailbroken PS5:
 
 1. Writes a custom icon to `/user/appmeta/NPXS40047/icon0.png`.
-2. Renames the tile to "Jailbreak Store".
-3. Redirects the tile's launch URL, so pressing it opens the PS5's webview
+2. Redirects the tile's launch URL, so pressing it opens the PS5's webview
    at a chosen page instead of the real Store.
 
 All changes are done with `UPDATE`/`INSERT` statements on existing rows.

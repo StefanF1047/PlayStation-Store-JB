@@ -8,7 +8,7 @@ and you will lose all your PS4 FPKGs.**
 
 ## What it does
 
-Running `JailbreakStore.elf` on a jailbroken PS5:
+Running `PlayStation-Store-JB.elf` on a jailbroken PS5:
 
 1. Writes a custom icon to `/user/appmeta/NPXS40047/icon0.png`.
 2. Renames the tile to "Jailbreak Store".
@@ -23,7 +23,7 @@ Nothing is deleted, and the Store's own row is never removed.
 Requires the [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk).
 
 ```
-make                        # build JailbreakStore.elf
+make                        # build PlayStation-Store-JB.elf
 make clean                  # remove build output
 PS5_PAYLOAD_SDK=/path make  # use a different SDK location
 PS5_HOST=<ip> make deploy   # build + send to console
@@ -40,7 +40,7 @@ the project root before building to customize the name, URL, and icon.
    source will render stretched on the tile.
 2. Run `make`. The Makefile regenerates `source/icon0_png.h` from
    `icon0.png` automatically, embedding it into the build.
-3. Send the rebuilt `JailbreakStore.elf` and reboot. It writes the new
+3. Send the rebuilt `PlayStation-Store-JB.elf` and reboot. It writes the new
    icon to `/user/appmeta/NPXS40047/icon0.png` on the console.
 
 Once `icon0Info` points there, you can also skip all of the above and
@@ -49,5 +49,5 @@ file manager) -- no rebuild, no resend, just reboot to see it.
 
 ## Run
 
-Send `JailbreakStore.elf` to the console the same way you'd load any
+Send `PlayStation-Store-JB.elf` to the console the same way you'd load any
 other payload, then reboot to see the changes.

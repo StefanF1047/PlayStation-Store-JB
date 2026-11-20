@@ -20,4 +20,4 @@ store/build/
 store/icon_png.h
 store/pic0_png.h
 .DS_Store
-build_ps5
+build_ps5/

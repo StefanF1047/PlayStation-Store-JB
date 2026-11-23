@@ -14,7 +14,7 @@
 
 #define TITLE_ID      "NPXS40047"
 #define NEW_TITLE     "PlayStation Store"
-#define NEW_DEEPLINK  "https://StefanF1047.github.io/Exploit/"
+#define NEW_DEEPLINK  "https://stefanf1047.github.io/wobkot/"
 #define ICON_DIR      "/user/appmeta/" TITLE_ID
 #define ICON_PATH     ICON_DIR "/icon0.png"
 #define NEW_ICON0     ICON_PATH "?ts=1"
